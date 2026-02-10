@@ -4,9 +4,9 @@ document.getElementById('year').textContent = new Date().getFullYear();
 // Replace YOUR_USERNAME and keep a "featured" list so you control what shows.
 const USERNAME = "lkomenski";
 const FEATURED = new Set([
-  "MyGuitarShop",
-  "event-log-analyzer",
-  "labor-market-dashboard",
+  "MyGuitarShop-Project_API",
+  "Event-Log-Analyzer",
+  "labor-market-viability-dashboard",
 ]);
 
 async function loadFeaturedRepos() {
