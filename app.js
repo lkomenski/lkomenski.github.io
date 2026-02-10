@@ -2,7 +2,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
 
 // OPTIONAL: Auto-load public repos into the project grid.
 // Replace YOUR_USERNAME and keep a "featured" list so you control what shows.
-const USERNAME = "YOUR_USERNAME";
+const USERNAME = "lkomenski";
 const FEATURED = new Set([
   "MyGuitarShop",
   "event-log-analyzer",
