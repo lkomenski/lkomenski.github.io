@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Your Name — Software Developer</title>
+  <meta name="description" content="Portfolio showcasing full-stack projects, APIs, and data-focused software." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <header class="header">
+    <div class="container nav">
+      <a class="brand" href="#top" aria-label="Home">
+        <span class="dot"></span>
+        <span>Your Name</span>
+      </a>
+
+      <nav class="links" aria-label="Primary">
+        <a href="#projects">Projects</a>
+        <a href="#about">About</a>
+        <a href="#skills">Skills</a>
+        <a href="#contact">Contact</a>
+      </nav>
+
+      <div class="cta">
+        <a class="btn ghost" href="https://github.com/YOUR_USERNAME" target="_blank" rel="noreferrer">GitHub</a>
+        <a class="btn" href="https://www.linkedin.com/in/YOUR_LINKEDIN/" target="_blank" rel="noreferrer">LinkedIn</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="kicker">Software Developer • Full-Stack • Data-minded</p>
+          <h1>Building reliable systems with clean UX and strong data integrity.</h1>
+          <p class="lede">
+            I design and ship production-oriented projects across APIs, databases, and modern web apps.
+            Here are a few highlights from my GitHub.
+          </p>
+
+          <div class="hero-actions">
+            <a class="btn" href="#projects">View Projects</a>
+            <a class="btn ghost" href="mailto:YOUR_EMAIL">Email Me</a>
+            <a class="btn ghost" href="./resume.pdf" target="_blank" rel="noreferrer">Resume</a>
+          </div>
+
+          <div class="meta">
+            <span>📍 Tacoma, WA</span>
+            <span>•</span>
+            <span>Open to internships / junior roles</span>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <h2 class="panel-title">Featured</h2>
+          <ul class="panel-list">
+            <li><a href="https://github.com/YOUR_USERNAME/MyGuitarShop" target="_blank" rel="noreferrer">MyGuitarShop E-Commerce</a><span>Role-based full stack</span></li>
+            <li><a href="https://github.com/YOUR_USERNAME/event-log-analyzer" target="_blank" rel="noreferrer">Event Log Analyzer</a><span>Correctness + scalability</span></li>
+            <li><a href="https://github.com/YOUR_USERNAME/labor-market-dashboard" target="_blank" rel="noreferrer">Labor Market Dashboard</a><span>BLS data + Angular</span></li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section id="projects" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Projects</h2>
+          <p>Selected work with clear scope, outcomes, and tech stack.</p>
+        </div>
+
+        <div class="grid" id="projectGrid">
+          <!-- You can hardcode cards below, OR let app.js auto-fill this grid from GitHub -->
+          <article class="card">
+            <div class="card-top">
+              <h3>MyGuitarShop E-Commerce</h3>
+              <span class="tag">Full-Stack</span>
+            </div>
+            <p>
+              Secure, role-based web app with REST APIs, dashboards, and SQL Server stored procedures.
+            </p>
+            <div class="chips">
+              <span>C#</span><span>.NET</span><span>SQL Server</span><span>React</span>
+            </div>
+            <div class="card-actions">
+              <a class="btn sm" href="https://github.com/YOUR_USERNAME/MyGuitarShop" target="_blank" rel="noreferrer">Code</a>
+              <a class="btn sm ghost" href="#" target="_blank" rel="noreferrer">Live</a>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <h3>Event Log Analyzer</h3>
+              <span class="tag">Tooling</span>
+            </div>
+            <p>
+              CLI tool to parse timestamped logs and compute metrics with an emphasis on correctness.
+            </p>
+            <div class="chips">
+              <span>Java</span><span>Algorithms</span><span>Testing</span>
+            </div>
+            <div class="card-actions">
+              <a class="btn sm" href="https://github.com/YOUR_USERNAME/event-log-analyzer" target="_blank" rel="noreferrer">Code</a>
+              <a class="btn sm ghost" href="#" target="_blank" rel="noreferrer">Docs</a>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <h3>Labor Market Viability Dashboard</h3>
+              <span class="tag">Data</span>
+            </div>
+            <p>
+              Angular dashboard consuming labor-market APIs to compare earnings and demand trends.
+            </p>
+            <div class="chips">
+              <span>Angular</span><span>TypeScript</span><span>Tailwind</span><span>APIs</span>
+            </div>
+            <div class="card-actions">
+              <a class="btn sm" href="https://github.com/YOUR_USERNAME/labor-market-dashboard" target="_blank" rel="noreferrer">Code</a>
+              <a class="btn sm ghost" href="#" target="_blank" rel="noreferrer">Live</a>
+            </div>
+          </article>
+        </div>
+
+        <p class="hint">
+          Tip: Keep 3–6 featured projects here. Everything else can stay in GitHub, linked from your profile.
+        </p>
+      </div>
+    </section>
+
+    <section id="about" class="section alt">
+      <div class="container">
+        <div class="section-head">
+          <h2>About</h2>
+        </div>
+        <div class="two-col">
+          <p>
+            I build end-to-end software systems with a focus on correctness, maintainability, and real-world usability.
+            My work spans full-stack web apps, backend APIs, and data workflows.
+          </p>
+          <p>
+            I’m currently in a Software Development program (Data Analytics focus) and continuing into IT Project Management,
+            and I enjoy shipping projects that turn messy requirements into clear, reliable systems.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="skills" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Skills</h2>
+          <p>Tools I use to ship and maintain projects.</p>
+        </div>
+
+        <div class="skill-grid">
+          <div class="skill-card">
+            <h3>Backend</h3>
+            <p>C#, .NET Web API, Authentication/Authorization, REST, Validation</p>
+          </div>
+          <div class="skill-card">
+            <h3>Frontend</h3>
+            <p>React, Angular, TypeScript, Routing, Forms, UI systems</p>
+          </div>
+          <div class="skill-card">
+            <h3>Data</h3>
+            <p>SQL Server, Stored Procedures, Relational Modeling, Reporting</p>
+          </div>
+          <div class="skill-card">
+            <h3>Engineering</h3>
+            <p>Git/GitHub, Debugging, Testing, Documentation, System thinking</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="section alt">
+      <div class="container contact">
+        <div>
+          <h2>Contact</h2>
+          <p>If you want to talk about an internship, junior role, or a project collaboration:</p>
+        </div>
+        <div class="contact-actions">
+          <a class="btn" href="mailto:YOUR_EMAIL">YOUR_EMAIL</a>
+          <a class="btn ghost" href="https://github.com/YOUR_USERNAME" target="_blank" rel="noreferrer">GitHub</a>
+          <a class="btn ghost" href="https://www.linkedin.com/in/YOUR_LINKEDIN/" target="_blank" rel="noreferrer">LinkedIn</a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <p>© <span id="year"></span> Your Name. Built on GitHub Pages.</p>
+      </div>
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
