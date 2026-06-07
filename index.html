@@ -1,221 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Leena Komenski — Software Developer</title>
-  <meta name="description" content="Portfolio showcasing full-stack projects, APIs, and data-focused software." />
-  <link rel="stylesheet" href="./styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leena Komenski</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-  <header class="header">
-    <div class="container nav">
-      <a class="brand" href="#top" aria-label="Home">
-        <span class="dot"></span>
-        <span>Leena Komenski</span>
-      </a>
 
-      <nav class="links" aria-label="Primary">
-        <a href="#projects">Projects</a>
-        <a href="#about">About</a>
-        <a href="#skills">Skills</a>
-        <a href="#contact">Contact</a>
-      </nav>
+<nav>
+  <a href="index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="writing.html">Writing</a></li>
+    <li><a href="projects.html">Projects</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu">☰</button>
+</nav>
 
-      <div class="cta">
-        <a class="btn ghost" href="https://github.com/lkomenski" target="_blank" rel="noreferrer">GitHub</a>
-        <a class="btn" href="https://www.linkedin.com/in/leena-komenski/" target="_blank" rel="noreferrer">LinkedIn</a>
+<div class="hero">
+  <div class="hero-inner">
+    <p class="hero-eyebrow">Business Operations · Data Analytics · Tacoma, WA</p>
+    <h1 class="hero-headline">
+      Most people understand<br>
+      one layer.<br>
+      <em>I see how they connect.</em>
+    </h1>
+    <p class="hero-sub">
+      I work at the intersection of business operations and data analytics — 
+      translating vague problems into specific questions, finding the answers 
+      in the data, and bringing back solutions that fit how the work actually happens.
+    </p>
+    <div class="hero-actions">
+      <a href="writing.html" class="btn-primary">Read the Writing</a>
+      <a href="projects.html" class="btn-secondary">View Projects</a>
+      <a href="about.html" class="btn-secondary">About Me</a>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURED WRITING -->
+<section>
+  <div class="section-header">
+    <h2 class="section-title">Writing</h2>
+    <div class="section-rule"></div>
+    <a href="writing.html" class="section-link">All posts →</a>
+  </div>
+
+  <div class="writing-featured">
+    <div class="writing-featured-left">
+      <span class="writing-tag">Data Engineering · Featured</span>
+      <h3 class="writing-title-lg">Why we migrated from 3NF to star schema mid-project — and why it was the right call</h3>
+      <p class="writing-excerpt">We started with a fully normalized 3NF schema. It made sense on paper. Then we ingested 28 million rows and realized we'd built the right structure for the wrong workload.</p>
+      <a href="#" class="text-link">Read Post →</a>
+    </div>
+    <div class="writing-featured-right">
+      <div>
+        <p class="writing-excerpt">3NF protects against write anomalies. Our database is written once and never touched again — every operation is a read. Star schema cut multi-table join chains to single indexed lookups. At 28 million rows, that matters.</p>
+        <span class="writing-meta">SQL Server · Architecture · 10 min read</span>
+      </div>
+      <div class="writing-secondary-list">
+        <a href="#" class="writing-secondary-item">
+          <span class="writing-tag">SQL Server</span>
+          <span class="writing-title-sm">The BULK INSERT encoding error I spent two hours on — and exactly how I fixed it</span>
+        </a>
+        <a href="#" class="writing-secondary-item">
+          <span class="writing-tag">Analytics</span>
+          <span class="writing-title-sm">Median vs. mean: defending a statistic when your distribution is skewed</span>
+        </a>
       </div>
     </div>
-  </header>
-  
-<main id="top">
-<section class="hero">
-  <div class="container hero-grid">
-    <!-- Left column -->
-    <div>
-      <p class="kicker">Software Developer · Full-Stack · Data-Focused</p>
-
-      <h1>
-        Building reliable software<br />
-        with clarity, care, and real-world constraints.
-      </h1>
-
-      <p class="lede">
-        I design and implement production-minded systems across APIs, databases, and modern web apps—
-        with a strong emphasis on correctness, data integrity, and maintainability.
-      </p>
-
-      <p class="signature">
-        I care deeply about <strong>correctness</strong>, thoughtful UX, and shipping work that actually holds up.
-      </p>
-
-      <div class="hero-actions">
-        <a class="btn" href="#projects">View Projects</a>
-        <a class="btn ghost" href="mailto:lkomenski@gmail.com">Email Me</a>
-        <a class="btn ghost" href="./resume.pdf" target="_blank" rel="noreferrer">Resume</a>
-      </div>
-
-      <div class="meta">
-        <span>📍 Tacoma, WA</span>
-        <span>•</span>
-        <span>Open to internships / junior roles</span>
-      </div>
-    </div>
-
-    <!-- Right column -->
-    <aside class="panel">
-      <h2 class="panel-title">Featured</h2>
-      <ul class="panel-list">
-        <li>
-          <a href="https://github.com/lkomenski/MyGuitarShop-Project_API" target="_blank" rel="noreferrer">MyGuitarShop E-Commerce</a>
-          <span>Role-based full stack</span>
-        </li>
-        <li>
-          <a href="https://github.com/lkomenski/Event-Log-Analyzer" target="_blank" rel="noreferrer">Event Log Analyzer</a>
-          <span>Correctness + scalability</span>
-        </li>
-        <li>
-          <a href="https://github.com/lkomenski/labor-market-viability-dashboard" target="_blank" rel="noreferrer">Labor Market Dashboard</a>
-          <span>BLS data + Angular</span>
-        </li>
-      </ul>
-    </aside>
   </div>
 </section>
 
-    <section id="projects" class="section">
-      <div class="container">
-        <div class="section-head">
-          <h2>Projects</h2>
-          <p>Selected work with clear scope, outcomes, and tech stack.</p>
-        </div>
+<!-- FEATURED PROJECTS -->
+<section class="alt">
+  <div class="section-header">
+    <h2 class="section-title">Projects</h2>
+    <div class="section-rule"></div>
+    <a href="projects.html" class="section-link">All projects →</a>
+  </div>
 
-        <div class="grid" id="projectGrid">
-          <!-- You can hardcode cards below, OR let app.js auto-fill this grid from GitHub -->
-          <article class="card">
-            <div class="card-top">
-              <h3>MyGuitarShop E-Commerce</h3>
-            </div>
-          
-            <p>
-              Secure, role-based full-stack platform integrating REST APIs,
-              SQL Server stored procedures, and a React frontend.
-            </p>
-          
-            <p class="stackline">C# · .NET Web API · SQL Server · React</p>
-          
-            <div class="card-actions">
-              <a class="btn sm" href="https://github.com/lkomenski/MyGuitarShop-Project_API" target="_blank">Code</a>
-              <a class="btn sm ghost" href="#">Live</a>
-            </div>
-          </article>
-          <article class="card">
-            <div class="card-top">
-              <h3>Event Log Analyzer</h3>
-            </div>
-          
-            <p>
-              CLI tool to parse timestamped logs and compute metrics with an emphasis on correctness.
-            </p>
-          
-            <p class="stackline">Python · Algorithims · Testing</p>
-          
-            <div class="card-actions">
-              <a class="btn sm" href="https://github.com/lkomenski/Event-Log-Analyzer" target="_blank">Code</a>
-              <a class="btn sm ghost" href="#">Live</a>
-            </div>
-          </article>
-
-          <article class="card">
-            <div class="card-top">
-              <h3>Labor Market Viability Dashboard</h3>
-            </div>
-            <p>
-              Angular dashboard consuming labor-market APIs to compare earnings and demand trends.
-            </p>
-            <p class="stackline">Angular · TypeScript · Tailwind · APIs</p>
-            <div class="card-actions">
-              <a class="btn sm" href="https://github.com/lkomenski/labor-market-viability-dashboard" target="_blank" rel="noreferrer">Code</a>
-              <a class="btn sm ghost" href="#">Live</a>
-            </div>
-          </article>
-        </div>
-
-        <p class="hint">
-          Tip: Keep 3–6 featured projects here. Everything else can stay in GitHub, linked from your profile.
-        </p>
+  <div class="projects-home-grid">
+    <div class="project-home-card">
+      <p class="project-type">Data Engineering · Capstone</p>
+      <p class="project-context">First stored procedure written three months before this shipped.</p>
+      <h3 class="project-name">Hidden Gem Music</h3>
+      <p class="project-body">28M rows, 57 countries, star schema data warehouse, 21 stored procedures, .NET 9 API, deployed product. BDA Lead and sole Project Manager on a two-person team.</p>
+      <p class="project-stack">SQL Server · .NET 9 · React Native · Recharts</p>
+      <div class="project-links-row">
+        <a href="#" class="text-link">GitHub</a>
+        <a href="#" class="text-link">Case Study →</a>
       </div>
-    </section>
-
-    <section id="about" class="section alt">
-      <div class="container">
-        <div class="section-head">
-          <h2>About</h2>
-        </div>
-        <div class="two-col">
-          <p>
-            I build end-to-end software systems with a focus on correctness, maintainability, and real-world usability.
-            My work spans full-stack web apps, backend APIs, and data workflows.
-          </p>
-          <p>
-            I’m currently in a Software Development program (Data Analytics focus) and continuing into IT Project Management,
-            and I enjoy shipping projects that turn messy requirements into clear, reliable systems.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section id="skills" class="section">
-      <div class="container">
-        <div class="section-head">
-          <h2>Skills</h2>
-          <p>Tools I use to ship and maintain projects.</p>
-        </div>
-
-        <div class="skill-grid">
-          <div class="skill-card">
-            <h3>Backend</h3>
-            <p>C#, .NET Web API, Authentication/Authorization, REST, Validation</p>
-          </div>
-          <div class="skill-card">
-            <h3>Frontend</h3>
-            <p>React, Angular, TypeScript, Routing, Forms, UI systems</p>
-          </div>
-          <div class="skill-card">
-            <h3>Data</h3>
-            <p>SQL Server, Stored Procedures, Relational Modeling, Reporting</p>
-          </div>
-          <div class="skill-card">
-            <h3>Engineering</h3>
-            <p>Git/GitHub, Debugging, Testing, Documentation, System thinking</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="contact" class="section alt">
-      <div class="container contact">
-        <div>
-          <h2>Contact</h2>
-          <p>If you want to talk about an internship, junior role, or a project collaboration:</p>
-        </div>
-        <div class="contact-actions">
-          <a class="btn" href="mailto:lkomenski@gmail.com">lkomenski@gmail.com</a>
-          <a class="btn ghost" href="https://github.com/lkomenski" target="_blank" rel="noreferrer">GitHub</a>
-          <a class="btn ghost" href="https://www.linkedin.com/in/leena-komenski/" target="_blank" rel="noreferrer">LinkedIn</a>
-        </div>
-      </div>
-    </section>
-
-  <footer class="footer">
-    <div class="container">
-      <p>© <span id="year"></span> Leena Komenski. Built on GitHub Pages.</p>
     </div>
-  </footer>
-  </main>
 
-  <script src="./app.js"></script>
+    <div class="project-home-card">
+      <p class="project-type">Business Analytics · Tableau</p>
+      <p class="project-context">Same dataset as the capstone — the analytical layer on top of the data engineering.</p>
+      <h3 class="project-name">Music Discovery Analytics Dashboard</h3>
+      <p class="project-body">Tableau dashboards built on the Hidden Gem Music data warehouse. From raw ingestion to deployed insight — the full end-to-end analytical picture.</p>
+      <p class="project-stack">Tableau · SQL Server · Star Schema</p>
+      <div class="project-links-row">
+        <a href="#" class="text-link">View Dashboard →</a>
+      </div>
+    </div>
+
+    <div class="project-home-card">
+      <p class="project-type">Full-Stack · Academic</p>
+      <p class="project-context">Built during the course that introduced C# and .NET. No prior exposure.</p>
+      <h3 class="project-name">MyGuitarShop E-Commerce</h3>
+      <p class="project-body">Role-based full-stack platform with secure authentication, REST APIs, SQL Server stored procedures, and a React frontend. Exceeded the final project rubric.</p>
+      <p class="project-stack">C# · .NET Web API · SQL Server · React</p>
+      <div class="project-links-row">
+        <a href="#" class="text-link">GitHub</a>
+        <a href="#" class="text-link">Live</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+    <li><a href="#">Resume</a></li>
+    <li><a href="#">Email</a></li>
+  </ul>
+</footer>
+
 </body>
 </html>

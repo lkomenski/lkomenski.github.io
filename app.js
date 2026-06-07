@@ -1,57 +1,115 @@
-document.getElementById('year').textContent = new Date().getFullYear();
+// ─── COPYRIGHT YEAR ───────────────────────────────────────────────────────────
+document.querySelectorAll('.copyright-year').forEach(el => {
+  el.textContent = new Date().getFullYear();
+});
 
-// OPTIONAL: Auto-load public repos into the project grid.
-// Replace YOUR_USERNAME and keep a "featured" list so you control what shows.
-const USERNAME = "lkomenski";
-const FEATURED = new Set([
-  "MyGuitarShop-Project_API",
-  "Event-Log-Analyzer",
-  "labor-market-viability-dashboard",
-]);
+// ─── ACTIVE NAV STATE ─────────────────────────────────────────────────────────
+// Highlights the correct nav link based on the current page filename.
+(function setActiveNav() {
+  const page = window.location.pathname.split('/').pop() || 'index.html';
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    const href = link.getAttribute('href');
+    if (!href) return;
+    const linkPage = href.split('/').pop();
+    if (linkPage === page) {
+      link.style.color = 'var(--dark)';
+      link.setAttribute('aria-current', 'page');
+    }
+  });
+})();
 
-async function loadFeaturedRepos() {
-  const grid = document.getElementById("projectGrid");
-  if (!grid) return;
+// ─── MOBILE NAV TOGGLE ────────────────────────────────────────────────────────
+(function initMobileNav() {
+  const toggle = document.querySelector('.nav-toggle');
+  const navLinks = document.querySelector('.nav-links');
+  if (!toggle || !navLinks) return;
 
-  try {
-    const res = await fetch(`https://api.github.com/users/${USERNAME}/repos?per_page=100&sort=updated`);
-    if (!res.ok) return;
-
-    const repos = await res.json();
-    const featured = repos.filter(r => FEATURED.has(r.name));
-
-    // If you want ONLY your handcrafted cards, comment out the next two lines:
-    // grid.innerHTML = "";
-    // featured.forEach(r => grid.appendChild(repoCard(r)));
-  } catch (e) {
-    // Silent fail: portfolio should still look good even if API calls fail.
-  }
-}
-
-function repoCard(repo) {
-  const el = document.createElement("article");
-  el.className = "card";
-  el.innerHTML = `
-    <div class="card-top">
-      <h3>${escapeHtml(repo.name)}</h3>
-      <span class="tag">GitHub Repo</span>
-    </div>
-    <p>${escapeHtml(repo.description || "Project repository.")}</p>
-    <div class="chips">
-      ${repo.language ? `<span>${escapeHtml(repo.language)}</span>` : ""}
-      <span>Updated: ${new Date(repo.updated_at).toLocaleDateString()}</span>
-    </div>
-    <div class="card-actions">
-      <a class="btn sm" href="${repo.html_url}" target="_blank" rel="noreferrer">Code</a>
-    </div>
+  // Inject mobile nav styles dynamically so they only apply when JS is active
+  const style = document.createElement('style');
+  style.textContent = `
+    @media (max-width: 768px) {
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 58px;
+        left: 0;
+        right: 0;
+        background-color: var(--warm-white);
+        border-bottom: 1px solid var(--rule);
+        padding: 20px 24px 28px;
+        gap: 20px;
+        z-index: 99;
+      }
+      .nav-links.open a {
+        font-size: 14px;
+        letter-spacing: 0.06em;
+      }
+    }
   `;
-  return el;
-}
+  document.head.appendChild(style);
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, s => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[s]));
-}
+  toggle.addEventListener('click', () => {
+    const isOpen = navLinks.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', isOpen);
+    toggle.textContent = isOpen ? '✕' : '☰';
+  });
 
-loadFeaturedRepos();
+  // Close nav when a link is clicked
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('open');
+      toggle.setAttribute('aria-expanded', false);
+      toggle.textContent = '☰';
+    });
+  });
+
+  // Close nav when clicking outside
+  document.addEventListener('click', e => {
+    if (!navLinks.contains(e.target) && !toggle.contains(e.target)) {
+      navLinks.classList.remove('open');
+      toggle.setAttribute('aria-expanded', false);
+      toggle.textContent = '☰';
+    }
+  });
+})();
+
+// ─── SMOOTH SCROLL ────────────────────────────────────────────────────────────
+// Handles anchor links on the same page (e.g. #writing on index).
+// CSS scroll-behavior handles most cases; this adds offset for the sticky nav.
+(function initSmoothScroll() {
+  const NAV_HEIGHT = 58;
+
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', e => {
+      const id = anchor.getAttribute('href').slice(1);
+      if (!id) return;
+      const target = document.getElementById(id);
+      if (!target) return;
+      e.preventDefault();
+      const top = target.getBoundingClientRect().top + window.scrollY - NAV_HEIGHT - 16;
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
+  });
+})();
+
+// ─── WRITING LIST — SUBTLE HOVER ENHANCEMENT ──────────────────────────────────
+// Dims sibling items slightly when hovering a writing index row,
+// making the hovered item feel selected without any heavy visual change.
+(function initWritingListHover() {
+  const list = document.querySelector('.writing-index-list');
+  if (!list) return;
+
+  const items = list.querySelectorAll('.writing-index-item');
+
+  items.forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      items.forEach(other => {
+        if (other !== item) other.style.opacity = '0.45';
+      });
+    });
+    item.addEventListener('mouseleave', () => {
+      items.forEach(other => { other.style.opacity = ''; });
+    });
+  });
+})();

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projects — Leena Komenski</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="writing.html">Writing</a></li>
+    <li><a href="projects.html" style="color:#18181B">Projects</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu">☰</button>
+</nav>
+
+<div class="page-hero">
+  <p class="page-hero-eyebrow">Technical Work</p>
+  <h1 class="page-hero-title">Projects</h1>
+  <p class="page-hero-sub">Every project here was built with skills I didn't have at the start of the term it was assigned. The context line under each title is the part that matters.</p>
+</div>
+
+<section>
+  <div class="section-header">
+    <h2 class="section-title">Data & Analytics</h2>
+    <div class="section-rule"></div>
+  </div>
+  <div class="projects-full-list">
+
+    <div class="project-full-row">
+      <div>
+        <p class="project-type">Data Engineering · Capstone · BDA Lead & Project Manager</p>
+        <p class="project-context">First stored procedure written three months before this shipped. Two-person team.</p>
+        <h3 class="project-name">Hidden Gem Music</h3>
+        <p class="project-full-body">
+          Cross-regional music discovery platform surfacing the "Discovery Gap" — globally trending songs absent from local markets. 28 million rows across 57 countries, star schema data warehouse migrated mid-project from 3NF, 21 stored procedures across population and read layers, pre-computed summary tables for runtime performance, .NET 9 API with repository pattern, deployed via Cloudflare Tunnel. Served as BDA Track Lead and sole Project Manager on a two-person cross-functional team.
+        </p>
+        <p class="project-stack">SQL Server · .NET 9 · Star Schema · React Native · Recharts · Cloudflare · Power BI</p>
+      </div>
+      <div class="project-full-links">
+        <a href="#" class="text-link">GitHub</a>
+        <a href="#" class="text-link">Case Study →</a>
+      </div>
+    </div>
+
+    <div class="project-full-row">
+      <div>
+        <p class="project-type">Business Analytics · Tableau · Same dataset as above</p>
+        <p class="project-context">The analytical layer on top of the data engineering work — from raw ingestion to deployed insight.</p>
+        <h3 class="project-name">Music Discovery Analytics Dashboard</h3>
+        <p class="project-full-body">
+          Tableau dashboards built directly on the Hidden Gem Music star schema data warehouse, connected live to SQL Server. Visualizes the Discovery Gap KPIs: Global Overlap Rate, median Discovery Gap by country, most isolated markets, and peak cross-regional reach. Shows the full end-to-end picture — the same data, from the warehouse layer to the insight layer.
+        </p>
+        <p class="project-stack">Tableau Desktop · SQL Server · Star Schema · KPI Design</p>
+      </div>
+      <div class="project-full-links">
+        <a href="#" class="text-link">View →</a>
+      </div>
+    </div>
+
+    <div class="project-full-row">
+      <div>
+        <p class="project-type">Analytics · Academic</p>
+        <p class="project-context">First time working with external APIs or TypeScript.</p>
+        <h3 class="project-name">Labor Market Viability Dashboard</h3>
+        <p class="project-full-body">
+          Angular dashboard consuming BLS labor-market APIs to compare earnings and demand trends across industries and regions. Built to answer a real question with real public data. Designed around the analytical question first, implementation second.
+        </p>
+        <p class="project-stack">Angular · TypeScript · Tailwind · REST APIs · BLS Data</p>
+      </div>
+      <div class="project-full-links">
+        <a href="#" class="text-link">GitHub</a>
+        <a href="#" class="text-link">Live</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="alt">
+  <div class="section-header">
+    <h2 class="section-title">Full-Stack Development</h2>
+    <div class="section-rule"></div>
+  </div>
+  <div class="projects-full-list">
+
+    <div class="project-full-row">
+      <div>
+        <p class="project-type">Full-Stack · Academic</p>
+        <p class="project-context">Built during the course that introduced C# and .NET. No prior exposure to either.</p>
+        <h3 class="project-name">MyGuitarShop E-Commerce</h3>
+        <p class="project-full-body">
+          Role-based full-stack e-commerce platform with secure authentication and authorization, REST APIs, SQL Server stored procedures, and a React frontend. Built with correctness and production-minded architecture as the primary constraints — not just meeting the rubric, but building something that would hold up. Exceeded the final project requirements.
+        </p>
+        <p class="project-stack">C# · .NET Web API · SQL Server · React · Authentication · REST</p>
+      </div>
+      <div class="project-full-links">
+        <a href="#" class="text-link">GitHub</a>
+        <a href="#" class="text-link">Live</a>
+      </div>
+    </div>
+
+    <div class="project-full-row">
+      <div>
+        <p class="project-type">CLI Tool · Academic</p>
+        <p class="project-context">Built with an emphasis on correctness and edge case handling over feature count.</p>
+        <h3 class="project-name">Event Log Analyzer</h3>
+        <p class="project-full-body">
+          CLI tool to parse timestamped event logs and compute metrics with a strong emphasis on correctness. Designed to handle edge cases gracefully and produce reliable output regardless of input irregularities.
+        </p>
+        <p class="project-stack">Python · Algorithms · Testing</p>
+      </div>
+      <div class="project-full-links">
+        <a href="#" class="text-link">GitHub</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+    <li><a href="#">Resume</a></li>
+    <li><a href="#">Email</a></li>
+  </ul>
+</footer>
+
+</body>
+</html>
