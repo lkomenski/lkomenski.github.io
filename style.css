@@ -640,17 +640,16 @@ footer {
 
 .post-layout {
   display: grid;
-  grid-template-columns: 1fr 200px;
+  grid-template-columns: 1fr 240px;
   gap: 60px;
-  max-width: 1040px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
-.post-sidebar { position: relative; }
-
-.post-toc {
+.post-sidebar {
   position: sticky;
   top: 80px;
+  align-self: start;
 }
 
 .post-toc-label {
@@ -1051,6 +1050,11 @@ code {
   .post-nav { padding: 40px 24px; }
   .project-ref { flex-direction: column; }
   .stack-row { grid-template-columns: 1fr; gap: 4px; }
+  .post-layout { grid-template-columns: 1fr; }
+  .post-sidebar { display: none; }
+}
+
+@media (max-width: 960px) {
   .post-layout { grid-template-columns: 1fr; }
   .post-sidebar { display: none; }
 }
