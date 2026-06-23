@@ -1,0 +1,358 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The IDENTITY sequence restart that orphaned my ChartEntry rows — Leena Komenski</title>
+<meta name="description" content="After migrating from 3NF to star schema, DS2 ChartEntry rows became orphaned — their song_id values pointed to IDs that no longer existed in DIM_Song. The root cause took a while to find. Here's what happened, why delete-and-reinsert was the right fix, and why re-runnable ingestion scripts matter.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Data Engineering · SQL Server · Migration</p>
+    <h1 class="post-title">The IDENTITY sequence restart that orphaned my ChartEntry rows — and why I chose delete-and-reinsert over a patch</h1>
+    <p class="post-meta">SQL Server · Star Schema Migration · Data Integrity · 8 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the project</p>
+        <p class="project-ref-name">Hidden Gem Music</p>
+        <p class="project-ref-sub">Cross-regional music discovery platform · 28M rows · SQL Server · .NET 9</p>
+      </div>
+      <a href="../projects.html" class="text-link">View Project →</a>
+    </div>
+
+    <p>
+      The star schema migration was going well. The DDL had run cleanly,
+      the new dimension tables were in place, and the ingestion scripts had
+      been rewritten to target <code>DIM_Song</code>, <code>DIM_Artist</code>,
+      and <code>Bridge_SongArtist</code> instead of the old 3NF tables.
+      Then I ran the verification checks and the numbers were wrong.
+      Not slightly wrong — wrong in a way that meant something had gone
+      badly off somewhere in the migration.
+    </p>
+
+    <p>
+      The root cause took a while to find. What looked like a data problem
+      turned out to be a sequence problem — and understanding why led to
+      a fix decision that was as much about code quality as it was about
+      getting the numbers right.
+    </p>
+
+    <h2>What happened</h2>
+
+    <p>
+      The star schema migration replaced five 3NF tables —
+      <code>Song</code>, <code>Artist</code>, <code>ArtistSong</code>,
+      <code>AudioFeatures</code>, and <code>Album</code> —
+      with three dimensional tables: <code>DIM_Song</code>, <code>DIM_Artist</code>,
+      and <code>Bridge_SongArtist</code>.
+    </p>
+
+    <p>
+      The migration process dropped the old tables and created the new ones,
+      then ran the rewritten ingestion scripts to repopulate them.
+      <code>FACT_ChartEntry</code> was untouched throughout — all 28 million rows
+      stayed in place, with their existing <code>song_id</code> values intact.
+      The plan was that <code>DIM_Song</code> would be populated with the same
+      <code>song_id</code> values the original <code>Song</code> table had,
+      so <code>FACT_ChartEntry</code>'s foreign keys would still resolve correctly.
+    </p>
+
+    <p>
+      The problem: when <code>DIM_Song</code> was created as a new table,
+      its <code>IDENTITY</code> sequence started at 1 and incremented from there.
+      Dataset 1 was ingested first — those songs got <code>song_id</code> values
+      starting from 1, which happened to match what <code>FACT_ChartEntry</code>
+      was already pointing at for DS1 rows. Everything looked fine for DS1.
+    </p>
+
+    <p>
+      Dataset 2 was ingested second. But the songs that appeared in DS2 and not DS1
+      got new <code>song_id</code> values assigned by the fresh IDENTITY sequence —
+      values that were different from what the DS2 rows in <code>FACT_ChartEntry</code>
+      had been pointing at before the migration.
+      Those DS2 <code>FACT_ChartEntry</code> rows now had <code>song_id</code> values
+      that didn't exist anywhere in <code>DIM_Song</code>.
+      They were orphaned.
+    </p>
+
+    <div class="post-callout error">
+      <span class="callout-label">What orphaned rows look like</span>
+      <p>
+        A LEFT JOIN from <code>FACT_ChartEntry</code> to <code>DIM_Song</code>
+        on <code>song_id</code> returns NULL for all song columns on the affected rows.
+        The chart entry exists. The song it references does not.
+        Queries that filter for non-NULL song data silently exclude those rows —
+        no error, just wrong counts.
+      </p>
+    </div>
+
+    <h2>Why the root cause wasn't obvious immediately</h2>
+
+    <p>
+      When verification checks came back wrong, the first assumption wasn't
+      the IDENTITY sequence — it was the ingestion scripts themselves.
+      Were rows being dropped during the deduplication logic?
+      Was the <code>spotify_id</code> parsing producing different results
+      the second time? Was a column constraint silently rejecting rows?
+    </p>
+
+    <p>
+      Working through those possibilities took time.
+      The DS1 numbers looked correct, which narrowed it to something
+      specific to the DS2 ingestion or the DS2 rows in <code>FACT_ChartEntry</code>.
+      Querying the orphaned rows directly is what finally made it clear:
+    </p>
+
+    <pre>-- Find ChartEntry rows with no matching DIM_Song entry
+SELECT COUNT(*)
+FROM FACT_ChartEntry ce
+LEFT JOIN DIM_Song ds ON ce.song_id = ds.song_id
+WHERE ds.song_id IS NULL
+  AND ce.source = 'Dataset2';</pre>
+
+    <p>
+      The count came back non-zero. That's when the IDENTITY sequence
+      became the obvious explanation — DS2 songs that weren't in DS1
+      had been assigned new IDs that didn't match what <code>FACT_ChartEntry</code>
+      was already holding.
+    </p>
+
+    <h2>Two options, one decision</h2>
+
+    <p>
+      Once the root cause was clear, there were two ways to fix it.
+    </p>
+
+    <p>
+      <strong>Option 1: Update.</strong>
+      Query <code>DIM_Song</code> to find the new <code>song_id</code> for each
+      affected song, then UPDATE the corresponding <code>FACT_ChartEntry</code> rows
+      to point at the correct new ID. Technically possible.
+      But it required matching songs across the old and new ID spaces —
+      using <code>spotify_id</code> as the bridge — and updating 2 million rows
+      in the fact table. Doable, but complex, and any error in the matching logic
+      would produce quietly wrong data that was hard to verify.
+    </p>
+
+    <p>
+      <strong>Option 2: Delete and reinsert.</strong>
+      Delete the DS2 rows from <code>FACT_ChartEntry</code> and rerun the DS2
+      ingestion script, which would now correctly resolve <code>song_id</code>
+      values against the populated <code>DIM_Song</code> table.
+      The DS2 ingestion script already existed and had already run successfully once.
+      Running it again — after truncating the DS2 <code>FACT_ChartEntry</code> rows —
+      was straightforward.
+    </p>
+
+    <p>
+      I chose delete-and-reinsert. Not because it was easier in the moment —
+      it meant reingesting 2 million rows — but because it was cleaner
+      in every way that mattered.
+    </p>
+
+    <h2>Why clean mattered more than fast</h2>
+
+    <p>
+      The update approach would have fixed the numbers.
+      But it would have introduced a one-off correction — a patch applied
+      on top of an ingestion that had gone wrong — that would live in the
+      documented history of the project alongside code that assumed
+      the ingestion was correct.
+    </p>
+
+    <p>
+      I didn't want that. The ingestion scripts are documented.
+      They're in the repo. They're the record of how the data got into the database.
+      If those scripts produce the wrong result when run in sequence,
+      that's a problem with the scripts — not something to paper over with
+      a correction script run afterward.
+    </p>
+
+    <p>
+      More practically: I wanted the ingestion scripts to be re-runnable from scratch.
+      If someone needed to rebuild the database from the raw data files —
+      whether for a future iteration, a new environment, or a disaster recovery —
+      running the scripts in order should produce a correct result.
+      An update patch applied after the fact doesn't survive that scenario.
+      A correct ingestion script does.
+    </p>
+
+    <div class="post-callout fix">
+      <span class="callout-label">The ChartEntry fix</span>
+      <p>
+        Delete all DS2 rows from <code>FACT_ChartEntry</code> using the
+        <code>source</code> column tag. Rerun the DS2 ingestion script,
+        which now resolves <code>song_id</code> via a lookup against the
+        populated <code>DIM_Song</code> table rather than assigning new IDENTITY values.
+        Verify row counts. Done.
+      </p>
+    </div>
+
+    <pre>-- Remove DS2 ChartEntry rows before reingestion
+DELETE FROM FACT_ChartEntry
+WHERE source = 'Top50_73_Countries';
+
+-- Verify DS1 rows are untouched
+SELECT COUNT(*) FROM FACT_ChartEntry WHERE source = 'Spotify_Historical_Charts';
+-- Expected: 26,173,514
+
+-- Then rerun DS2 ingestion script
+-- Expected DS2 count after: 2,110,316</pre>
+
+    <h2>The cascade: it didn't stop at ChartEntry</h2>
+
+    <p>
+      Fixing the ChartEntry orphans wasn't the end of it. The same IDENTITY sequence
+      problem had cascaded into every pre-computed summary table that held a
+      <code>song_id</code> foreign key.
+    </p>
+
+    <p>
+      Five summary tables — <code>PeakReachBySong</code>, <code>TrendVelocityBySong</code>,
+      <code>HiddenGems</code>, <code>SongCountryPresence</code>,
+      and <code>DiscoveryGapByDay</code> — had all been populated before the migration.
+      Every row in those tables referenced pre-migration <code>song_id</code> values
+      from the old <code>Song</code> table. After migration, those IDs no longer existed
+      in <code>DIM_Song</code>. Every row in every summary table was orphaned.
+    </p>
+
+    <p>
+      The fix for those was simpler than the ChartEntry fix, but it had to happen
+      in the right order. Truncate all summary tables, re-add the foreign keys
+      to the now-empty tables successfully, then rerun all population procedures
+      in full against the correct <code>DIM_Song</code> IDs:
+    </p>
+
+    <pre>-- Truncate all summary tables before re-adding FKs
+TRUNCATE TABLE SongCountryPresence;
+TRUNCATE TABLE DiscoveryGapByDay;
+TRUNCATE TABLE PeakReachBySong;
+TRUNCATE TABLE TrendVelocityBySong;
+TRUNCATE TABLE HiddenGems;
+-- (and remaining summary tables)
+
+-- FK re-adds now succeed against empty tables
+-- Then run population procedures in dependency order:
+EXEC sp_PopulateSongCountryPresence;
+EXEC sp_PopulateCountryYearStats;
+EXEC sp_PopulateGlobalOverlapByYear;
+EXEC sp_PopulateTrendVelocityBySong;
+EXEC sp_PopulateDiscoveryGapByDay;
+EXEC sp_PopulateIsolationScoreByCountry;
+EXEC sp_PopulatePeakReachBySong;
+EXEC sp_PopulateHiddenGems;</pre>
+
+    <p>
+      There was also a double ingestion problem discovered during verification.
+      At some point during the migration, both DS1 and DS2 had been ingested twice —
+      producing roughly 56 million total rows in <code>FACT_ChartEntry</code>
+      instead of 28 million. DS1 appeared under two different source tag values
+      from the two ingestion runs. DS2 appeared twice under the same tag.
+      The targeted delete by source tag resolved DS1.
+      For DS2, where the tag was identical across both runs, the fix used
+      the <code>chart_entry_id</code> midpoint to cleanly split the two insertions:
+    </p>
+
+    <pre>-- DS1 duplicate: different source tags, easy to target
+DELETE FROM FACT_ChartEntry
+WHERE source = 'Historical_Top200_and_Viral50';
+
+-- DS2 duplicate: same source tag, use ID midpoint to identify second insertion
+DELETE FROM FACT_ChartEntry
+WHERE source = 'Top50_73_Countries'
+  AND chart_entry_id > 60616149;</pre>
+
+    <p>
+      Final verified counts after all fixes:
+      DS1 26,173,514 rows, DS2 2,110,316 rows, combined 28,283,830.
+      Zero orphaned rows. Zero FK violations. All summary tables repopulated correctly.
+    </p>
+
+    <hr class="post-divider">
+
+    <h2>What to do differently from the start</h2>
+
+    <p>
+      The immediate lesson is specific to schema migrations in SQL Server:
+      when you drop and recreate a table with an IDENTITY column,
+      the sequence resets. If other tables hold foreign keys to the old IDs,
+      those references are now broken. The fix is to ensure that rows in
+      dependent tables are deleted and reinserted after the migration,
+      not left in place expecting the new table to match the old ID space.
+    </p>
+
+    <p>
+      The broader lesson is about ingestion script design.
+      The <code>source</code> column on <code>FACT_ChartEntry</code>
+      — a simple <code>NVARCHAR</code> column hardcoded to 'Dataset1' or 'Dataset2'
+      during ingestion — is what made the targeted delete possible.
+      Without it, separating DS1 and DS2 rows for a partial delete would have
+      required a date range filter or a join back to <code>DIM_Song</code>,
+      both of which are less reliable than a direct tag.
+    </p>
+
+    <p>
+      Tagging rows by source at ingestion time costs nothing and makes
+      every subsequent operation that touches one dataset but not the other
+      — reingestion, validation, targeted fixes — significantly simpler.
+      It's the kind of decision that feels like overhead when you make it
+      and like obvious foresight when you need it later.
+    </p>
+
+    <p>
+      The re-runnable ingestion script principle is the same category of decision.
+      It feels like extra care in the moment. It's the thing that lets you
+      fix a problem cleanly instead of patching it — and it's the difference
+      between documented work you stand behind and documented work
+      you have to explain around.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="pre-computed-summary-tables.html">← Why the API never touches the fact table</a>
+  </div>
+  <div style="text-align:right">
+    <span class="post-nav-label">Next Post</span>
+    <a href="two-datasets-one-analysis.html">Two datasets that can't be directly compared →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

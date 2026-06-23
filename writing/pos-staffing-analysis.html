@@ -1,0 +1,288 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Using POS transaction data to fix a staffing problem nobody could articulate — Leena Komenski</title>
+<meta name="description" content="Four people left within days of each other. The incoming manager had no data-backed framework to fall back on — just institutional knowledge walking out the door. Nobody asked me to build one. Here's what I pulled, what I found, and what changed.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Operations · Analytics · Workforce Planning</p>
+    <h1 class="post-title">Using POS transaction data to fix a staffing problem nobody could articulate</h1>
+    <p class="post-meta">Operational Analytics · Process Design · 10 min read</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the role</p>
+        <p class="project-ref-name">Assistant Manager & Operational Systems Lead</p>
+        <p class="project-ref-sub">Local food & beverage business · Tacoma, WA · 2023–Present</p>
+      </div>
+    </div>
+
+    <p>
+      Four people left within days of each other at the end of May —
+      including the manager who had been handling scheduling for years.
+      The incoming manager had never worked a shift on our floor.
+      There was no documented staffing framework to hand off,
+      no data-backed baseline to work from, and June —
+      the café's busiest month — was days away.
+    </p>
+
+    <p>
+      The deeper problem wasn't the staffing crisis itself.
+      It was that the previous scheduling approach had never been connected
+      to sales data. Schedules were built from habit, availability, and feel.
+      Nobody knew whether staffing levels were actually matched to
+      when the business needed people. The crisis made that visible
+      because there was nothing to fall back on except institutional knowledge
+      that was walking out the door.
+    </p>
+
+    <p>
+      Nobody asked me to build a framework. I proposed treating the scheduling
+      rebuild as a contractor project and used the transition as the opportunity
+      to create what should have existed already.
+    </p>
+
+    <h2>What I pulled and why the segmentation mattered</h2>
+
+    <p>
+      All data came from the café's POS system.
+      The obvious approach — export everything at once and look at the aggregate —
+      is the wrong approach for staffing decisions.
+      Aggregate data tells you total volume.
+      It doesn't tell you that Saturday spikes immediately at opening
+      while Tuesday ramps gradually, or that slow season looks nothing like June.
+      Averaging across all days and all seasons flattens exactly the variation
+      staffing decisions depend on.
+    </p>
+
+    <p>
+      The pull was structured in three layers:
+    </p>
+
+    <p>
+      <strong>14 months of daily labor data</strong> — actual hours worked,
+      wages paid, sales and transactions per day.
+      This established the per-person throughput figure:
+      <strong>$111 per hour per person at peak</strong>.
+      That number became the foundation for every staffing threshold in the model —
+      if an hour is generating enough revenue to justify a second person,
+      $111 is when you add them.
+    </p>
+
+    <p>
+      <strong>Monthly hourly sales files</strong> — sales and transaction counts
+      broken down by hour across all days of the week, covering 14 months.
+      This gave the revenue curve shape across the full period.
+    </p>
+
+    <p>
+      <strong>21 day-of-week specific hourly files</strong> —
+      the most important pull.
+      The POS hourly report filtered by individual day of week
+      across three distinct seasons: summer 2025, slow season (December–March),
+      and spring 2026. This separated Friday's revenue curve from Tuesday's,
+      and made Saturday's immediate morning spike visible
+      as structurally distinct from Sunday's.
+      Without this level of segmentation, those day-specific patterns disappear.
+    </p>
+
+    <p>
+      Two data quality issues had to be corrected before the model was usable.
+      The store expanded its opening hours in November 2025,
+      which meant pre-November data showed $0 for early morning hours
+      that are now open — a confound that would have made morning staffing
+      look unjustified when it's actually among the most justified.
+      The June projection also required a weighted blend:
+      summer data weighted at 60%, spring data at 40%,
+      because June sits between the two seasons and neither alone
+      would have been representative.
+    </p>
+
+    <h2>What the data showed</h2>
+
+    <div class="finding-list">
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 01</p>
+        <p class="finding-headline">A consistent 2-hour solo window every morning — on every day of the week</p>
+        <p class="finding-body">
+          The previous schedule had mid shifts starting at 10 or 10:30am across the board,
+          regardless of day. The data showed the $200+/hr threshold —
+          the point where two people are justified — being crossed at 8am
+          on every single day of the week. That's a two-hour window every morning
+          where one person was handling volume that warranted two.
+          It wasn't visible as a staffing problem because it had always been that way.
+          The data made it undeniable.
+        </p>
+      </div>
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 02</p>
+        <p class="finding-headline">Weekends aren't busier weekdays — they're structurally different days</p>
+        <p class="finding-body">
+          Saturday and Sunday both jump to three to four people needed
+          almost immediately at opening. There's no gradual weekday ramp.
+          The previous schedule had treated weekends as slightly busier weekdays —
+          same shape, more volume. The revenue curves showed they're not the same shape.
+          Weekend staffing needs to be front-loaded from the start of the day,
+          not scaled from a weekday template.
+        </p>
+      </div>
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 03</p>
+        <p class="finding-headline">Thursday's floor feel was backed up by the numbers</p>
+        <p class="finding-body">
+          Thursday had always felt genuinely busy in a way that was hard to explain —
+          not peak volume, but consistently demanding.
+          The data confirmed it. That justified keeping three mid slots on Thursdays
+          rather than trimming them as I'd initially considered.
+          This is the kind of decision that only makes sense if you trust
+          both the data and the floor experience, because the data alone
+          doesn't tell you why Thursday feels the way it does —
+          only that the volume supports what you're feeling.
+        </p>
+      </div>
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 04</p>
+        <p class="finding-headline">Wednesday's complexity doesn't show in the sales curve</p>
+        <p class="finding-body">
+          Wednesday is a heavy delivery coordination day.
+          The back-of-house load is real and consistent —
+          but it doesn't produce the kind of transaction volume
+          that shows up as a spike in hourly sales data.
+          If the model had been applied mechanically, Wednesday would have looked
+          like a lighter staffing day than it actually is.
+          It had to be treated as a floor constraint rather than a data-driven one,
+          because the data undersells how hard Wednesday actually is to work.
+          That call required the floor context to make correctly.
+        </p>
+      </div>
+
+    </div>
+
+    <h2>What changed</h2>
+
+    <p>
+      The output was a multi-tab Excel workbook:
+      two schedule grids (one for the immediate period, one accounting for
+      a staff member returning from leave), an hourly sales flow tab showing
+      the full revenue curve by day and season, a shift framework with
+      data justification for each slot, and a roster with accurate hours
+      and wages per person.
+    </p>
+
+    <p>
+      The practical changes: staggered arrivals that match the revenue curve
+      rather than a flat 10am start across the board.
+      A consistent rule that no barista clocks on after noon.
+      A hard two-person bar close every day.
+      Shift end times set by when coverage can be maintained,
+      not by arbitrary fixed lengths.
+    </p>
+
+    <p>
+      The labor analysis also answered the hiring question directly.
+      The operation was running at <strong>11–13.5% labor cost
+      against a 20% industry cap</strong> —
+      meaning there was genuine room to bring someone on
+      and promise them meaningful hours,
+      not one or two shifts cobbled together from gaps.
+      That's a different conversation than "we think we need more people."
+      It's a defensible answer with numbers behind it.
+    </p>
+
+    <div class="post-callout finding">
+      <span class="callout-label">What the model couldn't do alone</span>
+      <p>
+        The analytical work and the operational reality were happening in parallel.
+        Constraints kept shifting — people were hired, people left, availability changed.
+        Several staffing decisions required context that doesn't appear anywhere
+        in a POS export: which staff can and can't work alone with whom,
+        which days have coordination complexity that doesn't show in sales volume,
+        whose availability rules need to be built around regardless of what the curve says.
+      </p>
+      <p>
+        A correct model that ignores those constraints produces a schedule
+        that works on paper and breaks on the first day.
+        The floor experience is what lets you know which constraints are real
+        and which ones can be pushed back on.
+        The analysis took over a week of refinement — not because the data
+        was difficult, but because getting it right meant iterating
+        against a reality that kept moving.
+      </p>
+    </div>
+
+    <hr class="post-divider">
+
+    <h2>The gap this filled</h2>
+
+    <p>
+      Most small businesses run on institutional knowledge that lives in people,
+      not in systems. When those people leave, the knowledge goes with them.
+      A new manager stepping into a scheduling role with no documented baseline
+      is not a special situation. It's the default.
+    </p>
+
+    <p>
+      What made this solvable was the combination of knowing how to get the data,
+      knowing what to do with it analytically, and having enough firsthand
+      operational context to interpret what the numbers actually meant in practice —
+      and to catch where the model would have been wrong without that context.
+    </p>
+
+    <p>
+      I was the only person in the building who could do all three.
+      That's not a boast — it's just an accurate description of
+      why this kind of work tends not to get done in small businesses,
+      and what it takes to do it well.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="two-datasets-one-analysis.html">← Two datasets that can't be directly compared</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

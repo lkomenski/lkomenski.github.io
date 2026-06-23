@@ -1,0 +1,409 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>When your KPI and your chart contradict each other — Leena Komenski</title>
+<meta name="description" content="The Dashboard showed 43 days average discovery gap. The histogram showed most songs crossing in under a week. Both came from the same data. Here's how I traced it to three separate root causes and fixed all of them.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Analytics · QA · Statistics</p>
+    <h1 class="post-title">When your KPI and your chart contradict each other — and both are coming from the same data</h1>
+    <p class="post-meta">SQL Server · Stored Procedures · Data QA · 12 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the project</p>
+        <p class="project-ref-name">Hidden Gem Music</p>
+        <p class="project-ref-sub">Cross-regional music discovery platform · 28M rows · SQL Server · .NET 9</p>
+      </div>
+      <a href="../projects.html" class="text-link">View Project →</a>
+    </div>
+
+    <p>
+      The Global Overlap Dashboard had two pieces of information about the Discovery Gap —
+      how long it takes a song to spread from its origin country to another market.
+      The KPI card showed an average of 43 days.
+      The histogram directly below it showed the 0–7 day bucket as by far the tallest bar,
+      with the distribution dropping sharply after the first week.
+    </p>
+
+    <p>
+      A 43-day average is not consistent with a distribution that heavy in the first week.
+      Both numbers came from the same underlying data.
+      One of them was wrong — or both were measuring something different than I thought.
+    </p>
+
+    <p>
+      This is the investigation that followed: what I ran, what I found, and what I changed.
+      There were three separate root causes, and fixing the first one revealed the second,
+      which revealed the third. None of them were obvious until I started pulling the data directly.
+    </p>
+
+    <h2>How I noticed it</h2>
+
+    <p>
+      I was doing a full comb-through of the dashboard after wiring it to live data —
+      checking that every number felt right, not just that it rendered.
+      The contradiction between the KPI card and the histogram jumped out visually.
+      A 43-day average should produce a histogram that leans right, not one that peaks
+      in the first week and drops sharply. Something was off.
+    </p>
+
+    <p>
+      The first thing I did was run the stored procedures directly against the database
+      to see what they were actually returning.
+    </p>
+
+    <pre>EXEC sp_GetAverageDiscoveryGap @DateStart = '2017-01-01', @DateEnd = '2025-06-10';
+EXEC sp_GetDiscoveryGapDistribution @DateStart = '2017-01-01', @DateEnd = '2025-06-10';</pre>
+
+    <p>
+      The outputs confirmed what I was seeing on the dashboard.
+      Then I looked at the stored procedure code for both.
+    </p>
+
+    <h2>Root cause 1: The two procedures were measuring different things</h2>
+
+    <p>
+      <code>sp_GetAverageDiscoveryGap</code> was averaging <code>days_to_spread</code>
+      across every row in <code>DiscoveryGapByDay</code>.
+      That table has one row per song-country pair —
+      so a song that spread to ten countries contributed ten rows to the average,
+      one per destination country.
+      A song that crossed quickly to nine countries but slowly to one
+      pulled the average up by that one slow country, weighted equally with the fast ones.
+    </p>
+
+    <p>
+      <code>sp_GetDiscoveryGapDistribution</code> used <code>COUNT(DISTINCT song_id)</code>
+      per bucket — each song counted once, placed in the bucket of its
+      <em>minimum</em> gap across all its destination countries.
+    </p>
+
+    <p>
+      These are fundamentally different aggregation units.
+      The average was counting destination-country crossings.
+      The histogram was counting songs.
+      They were never going to agree.
+    </p>
+
+    <div class="post-callout error">
+      <span class="callout-label">The mismatch</span>
+      <p>
+        Average SP: one row per song-country crossing, averaged across all crossings.<br>
+        Distribution SP: one row per song, placed by minimum crossing time.<br>
+        Same table. Same column. Completely different denominators.
+      </p>
+    </div>
+
+    <p>
+      The fix was to rewrite <code>sp_GetAverageDiscoveryGap</code> to aggregate
+      to one row per song first — taking <code>MIN(days_to_spread)</code> —
+      before computing the average. Both procedures now count the same unit:
+      one first crossing per song.
+    </p>
+
+    <pre>-- New SongFirstCrossing CTE in sp_GetAverageDiscoveryGap
+WITH SongFirstCrossing AS (
+    SELECT
+        song_id,
+        MIN(days_to_spread) AS days_to_spread
+    FROM DiscoveryGapByDay
+    WHERE days_to_spread > 0
+    GROUP BY song_id
+)</pre>
+
+    <p>
+      After the fix, the average dropped from 43 days to 7 days.
+      The median was 0. Which was a different problem.
+    </p>
+
+    <h2>Root cause 2: 55,276 day-zero artifacts from dataset boundaries</h2>
+
+    <p>
+      A median of 0 means more than half the songs in the dataset had a measured
+      discovery gap of zero days. That's not a real finding — it's a data artifact.
+    </p>
+
+    <p>
+      I queried the distribution directly to see what was happening:
+    </p>
+
+    <pre>SELECT
+    days_to_spread,
+    COUNT(*) AS song_count
+FROM DiscoveryGapByDay
+WHERE days_to_spread = 0
+GROUP BY days_to_spread;</pre>
+
+    <p>
+      55,276 songs had <code>days_to_spread = 0</code> out of 59,922 total songs
+      in the 0–7 day bucket. These are left-censored observations.
+    </p>
+
+    <p>
+      Dataset 2 begins on October 17, 2023.
+      Songs that were already globally popular before that date —
+      charting in dozens of countries simultaneously on day one of the data —
+      produce a gap of zero because the dataset sees them appear everywhere at once.
+      The crossing happened before data collection began.
+      We can't measure something we don't have data for.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">What left-censorship means here</span>
+      <p>
+        Left-censored data is data where the event of interest happened before
+        the observation window opened. We know the song spread — we just don't know when,
+        because it was before our earliest data point.
+        A gap of zero doesn't mean it spread instantly.
+        It means we can't tell.
+      </p>
+    </div>
+
+    <p>
+      The fix: change the population stored procedure filter from
+      <code>gap_days &gt;= 0</code> to <code>gap_days &gt; 0</code>,
+      excluding day-zero rows from the table entirely.
+      These are not valid discovery gap measurements —
+      they are artifacts of the dataset's start date.
+      Repopulated the table.
+    </p>
+
+    <p>
+      After the fix: average 38 days, median 4 days.
+      The median was now a real number.
+      But the 0–7 day bucket was still very large — 21,936 songs.
+      So I looked at those too.
+    </p>
+
+    <h2>Root cause 3: Opening-week artifacts from both dataset boundaries</h2>
+
+    <p>
+      Were those 21,936 fast-crossing songs real, or were they another boundary artifact?
+      I queried to see how many had their first appearance in either dataset's opening week:
+    </p>
+
+    <pre>-- How many 0-7d songs have their origin in DS2's opening week?
+SELECT COUNT(DISTINCT song_id)
+FROM DiscoveryGapByDay
+WHERE days_to_spread BETWEEN 1 AND 7
+AND song_id IN (
+    SELECT song_id FROM DiscoveryGapByDay
+    WHERE first_appearance BETWEEN '2023-10-17' AND '2023-10-23'
+);</pre>
+
+    <p>
+      21,920 of the 21,936 fast-crossing songs had their origin in the DS2 opening week.
+      Songs that appeared in the data for the first time in the opening week of a new dataset
+      could produce artificially short gaps — the "origin" country is whichever country
+      happened to chart them first in the data, not necessarily where they actually originated.
+    </p>
+
+    <p>
+      A <code>HAVING</code> clause was added to the Origin CTE in the population procedure
+      to exclude songs whose global first appearance fell in either dataset's opening week.
+      Repopulated again.
+    </p>
+
+    <h2>Final values after all three fixes</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>State</th>
+          <th>Average</th>
+          <th>Median</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Original</td>
+          <td>43 days</td>
+          <td>—</td>
+          <td>Aggregation unit mismatch</td>
+        </tr>
+        <tr>
+          <td>After fix 1</td>
+          <td>7 days</td>
+          <td>0 days</td>
+          <td>Day-zero artifacts still present</td>
+        </tr>
+        <tr>
+          <td>After fix 2</td>
+          <td>38 days</td>
+          <td>4 days</td>
+          <td>Opening-week artifacts still present</td>
+        </tr>
+        <tr>
+          <td>Final</td>
+          <td>108 days</td>
+          <td>26 days</td>
+          <td>All artifacts excluded · 35,448 songs</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The final post-fix bucket distribution:
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Bucket</th>
+          <th>Song count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>0–7 days</td><td>21,936</td></tr>
+        <tr><td>8–14 days</td><td>8,033</td></tr>
+        <tr><td>15–30 days</td><td>11,517</td></tr>
+        <tr><td>31–60 days</td><td>6,966</td></tr>
+        <tr><td>61–90 days</td><td>3,103</td></tr>
+        <tr><td>90+ days</td><td>6,711</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Why median is the right number to report — and why we show both</h2>
+
+    <p>
+      A mean of 108 days and a median of 26 days from the same dataset isn't a contradiction.
+      It's information about the shape of the distribution.
+      The long tail — songs that take 90+ days to cross — pulls the mean up significantly
+      without affecting the median. Most songs cross in under a month.
+      A small number take much longer and drag the average with them.
+    </p>
+
+    <p>
+      For a skewed distribution like this, the median is the more meaningful KPI.
+      It tells you what a typical song does.
+      The mean tells you what the dataset does overall, including the outliers.
+      Both are true. Neither is wrong. They answer different questions.
+    </p>
+
+    <p>
+      The dashboard shows both numbers with a "why two numbers?" explanation on the KPI card
+      flip side — because a user who sees a mean of 108 and a median of 26
+      on the same card deserves to understand why they're different,
+      not just which one to trust.
+    </p>
+
+    <div class="post-callout fix">
+      <span class="callout-label">The principle</span>
+      <p>
+        When a headline number and a distribution chart contradict each other,
+        the contradiction is the finding. Don't pick one to trust —
+        investigate until you know why they disagree.
+        The answer is almost always either an aggregation unit mismatch,
+        a data artifact at a boundary, or both.
+      </p>
+    </div>
+
+    <hr class="post-divider">
+
+    <h2>What this investigation actually was</h2>
+
+    <p>
+      This wasn't a bug in the traditional sense. The stored procedures were doing
+      what they were written to do. The issue was that what they were written to do
+      wasn't quite right — one was measuring songs, one was measuring crossings,
+      and neither the code nor the documentation made that distinction visible
+      until the numbers stopped agreeing with each other on the dashboard.
+    </p>
+
+    <p>
+      The dashboard is what caught it. Having both the KPI and the distribution
+      visible on the same screen meant the inconsistency was immediately obvious
+      to anyone paying attention. If either of those had been on a different page —
+      or if I'd only verified the numbers in isolation — this would have shipped wrong.
+    </p>
+
+    <p>
+      But the deeper point isn't about the sequence of queries I ran.
+      It's about what it means to be responsible for the data layer of a product.
+    </p>
+
+    <p>
+      When you build the data infrastructure, you are responsible for what the user sees.
+      Not just technically — the number renders, the chart loads — but accurately.
+      A user who looks at a KPI card and trusts that number is trusting you.
+      If that number is wrong, or misleading, or measuring something subtly different
+      than what the label implies, that's not a frontend problem and it's not the user's
+      problem to figure out. It's yours.
+    </p>
+
+    <p>
+      That responsibility has two parts. The first is knowing what you're looking at well
+      enough to notice when something feels off — which requires actually looking,
+      not just verifying that the queries run. The second is knowing how to get to the
+      root cause technically: which layer to check, which query to run,
+      what the output means, and how to fix it cleanly without introducing a new problem.
+    </p>
+
+    <p>
+      Showing both mean and median on the KPI card wasn't just a design choice.
+      It was an acknowledgment that a single number would have been misleading —
+      and that users deserve to understand the shape of the data they're looking at,
+      not just the headline. That decision came from the same place as the investigation:
+      if you're responsible for the data, you're responsible for representing it honestly.
+    </p>
+
+    <p>
+      The investigation sequence — visual check, direct SP execution,
+      code review, direct table query, boundary analysis, fix, repopulate, verify —
+      is reproducible and it works. But the thing that starts it is simpler:
+      you have to actually look at what you built and ask whether it's right.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="bulk-insert-encoding-error.html">← The BULK INSERT errors I hit on SQL Server 2025</a>
+  </div>
+  <div style="text-align:right">
+    <span class="post-nav-label">Next Post</span>
+    <a href="viral-50-contamination.html">Why Viral 50 exclusion has to happen at the population layer →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

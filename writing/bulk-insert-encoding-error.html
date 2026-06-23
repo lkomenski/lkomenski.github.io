@@ -1,0 +1,275 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The BULK INSERT errors I hit on SQL Server 2025 — and exactly how I fixed them — Leena Komenski</title>
+<meta name="description" content="Three distinct BULK INSERT failure modes on SQL Server 2025: OLE DB path errors, misaligned rows from quoted CSV fields, and escape sequences treated as literal strings. Here's the exact fix.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">SQL Server · Data Ingestion</p>
+    <h1 class="post-title">The BULK INSERT errors I hit on SQL Server 2025 — and exactly how I fixed them</h1>
+    <p class="post-meta">SQL Server 2025 · BULK INSERT · CSV Ingestion · 8 min read</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <p>
+      I was ingesting Dataset 1 — 26 million rows of Spotify historical chart data from a 3.5GB CSV — 
+      into SQL Server 2025 when I ran into three separate failure modes in sequence. 
+      Each one looked like it might be the same problem. Each one had a different cause and a different fix. 
+      This post documents all three so you don't spend hours on the same path I did.
+    </p>
+
+    <p>
+      If you're hitting <code>BULK INSERT</code> errors on SQL Server 2025 specifically — 
+      misaligned rows, OLE DB provider errors, or terminators that seem to be ignored — 
+      one of these is probably your problem.
+    </p>
+
+    <h2>The setup</h2>
+
+    <p>
+      Dataset 1 is a Kaggle CSV with nine columns: 
+      <code>title, rank, date, artist, url, region, chart, trend, streams</code>. 
+      The artist column is the critical one — it contains comma-separated artist strings 
+      like <code>"J Balvin, Pharrell Williams, BIA, Sky"</code>, quoted per RFC 4180 
+      because the value itself contains commas. That detail becomes important later.
+    </p>
+
+    <p>
+      The target was a staging table — nine columns matching the CSV structure — 
+      which would then be cleaned and distributed into the normalized schema. 
+      Standard approach. Should have been straightforward.
+    </p>
+
+    <h2>Failure mode 1: The OLE DB path error</h2>
+
+    <div class="post-callout error">
+      <span class="error-label">Error</span>
+      <p>Msg 7301, Level 16, State 2 — Cannot obtain the required interface ("IID_IColumnsInfo") from OLE DB provider "BULK" for linked server "(null)".</p>
+    </div>
+
+    <p>
+      This one sounds alarming but is often a red herring. In my case it wasn't 
+      a driver issue at all — it was a file path issue. 
+      My CSV was sitting in a OneDrive folder:
+    </p>
+
+    <pre>C:\Users\lkome\OneDrive\School\Capstone Data\raw data- old\dataset1.csv</pre>
+
+    <p>
+      SQL Server's service account can't see OneDrive paths. OneDrive virtualizes the 
+      filesystem and the SQL Server process doesn't have access to that virtualized location. 
+      Running <code>EXEC xp_fileexist</code> on the path returned <code>0 0 0</code> — 
+      file not found, parent directory not found, nothing.
+    </p>
+
+    <div class="post-callout fix">
+      <span class="fix-label">Fix</span>
+      <p>Move the CSV to a simple local path SQL Server can actually reach. I used <code>C:\CapstoneData\</code>. Verify with <code>EXEC xp_fileexist 'C:\CapstoneData\dataset1.csv'</code> — you want <code>1 0 1</code> back before running anything else.</p>
+    </div>
+
+    <p>
+      Once the path was correct the OLE DB error disappeared. 
+      But a different error appeared immediately.
+    </p>
+
+    <h2>Failure mode 2: Misaligned rows from quoted CSV fields</h2>
+
+    <div class="post-callout error">
+      <span class="error-label">Error</span>
+      <p>Bulk load data conversion error — column too long in data file (row 1, column 9).</p>
+    </div>
+
+    <p>
+      This one is more subtle. SQL Server was trying to cram the beginning of row 2 
+      into the last column of row 1. The <code>streams</code> column — which should hold 
+      a number like <code>253019</code> — was receiving something thousands of characters long, 
+      triggering the truncation error.
+    </p>
+
+    <p>
+      The cause: the artist column contains values like 
+      <code>"J Balvin, Pharrell Williams, BIA, Sky"</code> — quoted strings with embedded commas. 
+      Without proper RFC 4180 parsing, <code>BULK INSERT</code> sees those internal commas 
+      as field terminators and loses its column alignment for the rest of the row. 
+      By the time it gets to column 9, it's completely lost track of where the row ends.
+    </p>
+
+    <p>
+      My first attempt at a fix — switching the <code>ROWTERMINATOR</code> value — 
+      didn't address the real problem. The rows weren't misaligned because of the terminator. 
+      They were misaligned because SQL Server wasn't handling the quoted fields correctly.
+    </p>
+
+    <div class="post-callout fix">
+      <span class="fix-label">Partial fix direction</span>
+      <p>The solution here is <code>FORMAT = 'CSV'</code>, which enables RFC 4180 parsing and tells SQL Server to treat quoted fields correctly. But on SQL Server 2025 there's an additional complication — which leads to failure mode 3.</p>
+    </div>
+
+    <h2>Failure mode 3: SQL Server 2025 breaks escape sequences entirely</h2>
+
+    <p>
+      This is the SQL Server 2025-specific issue and the one most likely to send you down 
+      a long debugging path if you're not aware of it.
+    </p>
+
+    <p>
+      In earlier versions of SQL Server, <code>ROWTERMINATOR = '\n'</code> works as expected. 
+      In SQL Server 2025, escape sequences in <code>ROWTERMINATOR</code> are treated as 
+      literal strings. <code>'\n'</code> doesn't mean line feed — it means the two characters 
+      backslash and n. Same for <code>'0x0d0a'</code> and variations like <code>'0x0d0x0a'</code>. 
+      All of them fail silently or produce the same misaligned-rows behavior.
+    </p>
+
+    <p>
+      The values I tried before finding the fix:
+    </p>
+
+    <pre>ROWTERMINATOR = '\n'        -- treats as literal \n, not line feed
+ROWTERMINATOR = '0x0d0a'    -- treats as literal string
+ROWTERMINATOR = '0x0d0x0a'  -- same problem, different spelling</pre>
+
+    <p>
+      None of them worked. The rows stayed misaligned. 
+      The fix requires combining <code>FORMAT = 'CSV'</code> with 
+      <code>ROWTERMINATOR = '0x0a'</code> — and it has to be both together. 
+      <code>FORMAT = 'CSV'</code> enables the RFC 4180 parser which correctly interprets 
+      the hex terminator, handles quoted fields with embedded commas, 
+      and makes the ingestion work as expected.
+    </p>
+
+    <h2>The fix</h2>
+
+    <div class="post-callout fix">
+      <span class="fix-label">Working BULK INSERT on SQL Server 2025</span>
+      <p>Use <code>FORMAT = 'CSV'</code> and <code>ROWTERMINATOR = '0x0a'</code> together. Neither works reliably alone on SQL Server 2025 with a quoted CSV.</p>
+    </div>
+
+    <pre>BULK INSERT DS1_Staging
+FROM 'C:\CapstoneData\dataset1_top200_viral50.csv'
+WITH (
+    FORMAT          = 'CSV',
+    FIRSTROW        = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR   = '0x0a',
+    CODEPAGE        = '65001',
+    MAXERRORS       = 0,
+    TABLOCK
+);</pre>
+
+    <p>
+      A few notes on the other parameters:
+    </p>
+
+    <p>
+      <strong>CODEPAGE = '65001'</strong> — UTF-8 encoding. Required for any CSV with 
+      non-ASCII characters, which artist names from international charts almost certainly contain.
+    </p>
+
+    <p>
+      <strong>MAXERRORS = 0</strong> — fail on the first error rather than silently skipping rows. 
+      At 26 million rows you want to know immediately if something is wrong, 
+      not discover it after a two-hour ingestion run completes with silent data loss.
+    </p>
+
+    <p>
+      <strong>TABLOCK</strong> — takes a table-level lock during ingestion, 
+      which significantly improves bulk load performance. 
+      Safe to use when no other processes are writing to the table simultaneously.
+    </p>
+
+    <h2>Additional issues that came up during ingestion</h2>
+
+    <p>
+      Fixing the <code>BULK INSERT</code> statement wasn't the end of it. 
+      A few more issues surfaced once rows were actually loading:
+    </p>
+
+    <p>
+      <strong>Column width truncation.</strong> The staging table initially had 
+      <code>NVARCHAR(255)</code> on title, artist, and url columns. 
+      The artist column in DS1 can be up to 1,428 characters for multi-artist strings. 
+      The fix was <code>NVARCHAR(MAX)</code> on the staging table for those columns, 
+      with proper widths enforced after cleaning during population of the normalized tables.
+    </p>
+
+    <p>
+      <strong>IDENTITY sequence restart after schema migration.</strong> 
+      After migrating from 3NF to star schema mid-project, 
+      IDENTITY sequences on affected tables had to be restarted. 
+      Failing to do this caused orphaned rows — foreign key references pointing to 
+      IDs that no longer existed in the new schema. 
+      The fix was a full delete-and-reinsert of the affected rows rather than an update, 
+      which is worth designing for from the start: 
+      make your ingestion scripts re-runnable with a <code>TRUNCATE</code> before insert.
+    </p>
+
+    <hr class="post-divider">
+
+    <h2>If you're hitting this on SQL Server 2025</h2>
+
+    <p>
+      The short version: <code>FORMAT = 'CSV'</code> and <code>ROWTERMINATOR = '0x0a'</code>, 
+      always together, for any quoted CSV with embedded commas. 
+      Verify your file path with <code>xp_fileexist</code> before assuming the error 
+      is about the query. And set <code>MAXERRORS = 0</code> so you know immediately 
+      when something goes wrong.
+    </p>
+
+    <p>
+      The OLE DB error, the misaligned rows error, and the escape sequence behavior 
+      are three different problems that can look like the same problem 
+      when you're in the middle of them. 
+      Treating them as one thing costs time. 
+      Treating them as three separate diagnostic questions — path, parsing, terminator — 
+      gets you to the fix faster.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="3nf-to-star-schema.html">← Why we migrated from 3NF to star schema mid-project</a>
+  </div>
+  <div style="text-align:right">
+    <span class="post-nav-label">Next Post</span>
+    <a href="qa-browser-to-database.html">Tracing a bug from the browser to the database →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

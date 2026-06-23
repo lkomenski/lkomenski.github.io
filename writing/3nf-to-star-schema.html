@@ -1,0 +1,261 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why we migrated from 3NF to star schema mid-project — Leena Komenski</title>
+<meta name="description" content="We started with a fully normalized 3NF schema. Then we ingested 28 million rows and realized we'd built the right structure for the wrong workload. Here's the decision, the migration, and what I'd tell someone earlier in the same project.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Data Engineering · Architecture</p>
+    <h1 class="post-title">Why we migrated from 3NF to star schema mid-project — and why it was the right call</h1>
+    <p class="post-meta">SQL Server · 10 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <p>
+      We started building Hidden Gem Music on a fully normalized 3NF schema. At design time, 
+      that made sense — it's what you learn first, it's well-understood, and the principles 
+      behind it are sound. What we didn't fully account for was the nature of our actual workload. 
+      By the time we were deep into stored procedure development and seeing the impact on load times, 
+      it was clear the schema was working against us. This is the story of how we caught it, 
+      what the migration involved, and what I'd tell someone earlier in the same project.
+    </p>
+
+    <h2>The 3NF schema and what it was designed to do</h2>
+
+    <p>
+      Third Normal Form exists to protect data integrity during writes. It eliminates redundancy, 
+      prevents update anomalies, and ensures that changing one piece of data doesn't silently 
+      corrupt another. For a transactional database — one where records are created, updated, 
+      and deleted regularly — these guarantees matter enormously.
+    </p>
+
+    <p>
+      Our original schema reflected those principles. Song data was split across <code>Song</code>, 
+      <code>Artist</code>, <code>ArtistSong</code>, <code>AudioFeatures</code>, and <code>Album</code> — 
+      each table responsible for exactly one thing, relationships enforced through foreign keys, 
+      no redundant data anywhere. Clean, correct, normalized.
+    </p>
+
+    <p>
+      The problem was that we weren't building a transactional database. 
+      We were building an analytical one.
+    </p>
+
+    <h2>Three things that told us something was wrong</h2>
+
+    <h3>1. Frontend load times</h3>
+
+    <p>
+      The first red flag showed up in the frontend. Pages that should have been fast weren't. 
+      When you can see the impact of what's happening in the database reflected in browser 
+      load times, something is structurally wrong — that's not a query optimization problem, 
+      that's an architecture problem. The schema was making the API work too hard to return 
+      data the UI needed.
+    </p>
+
+    <h3>2. The joins</h3>
+
+    <p>
+      Writing the stored procedures made it obvious. To return a song title and artist name — 
+      the most basic piece of display data in the entire app — required joining through 
+      <code>Song</code>, <code>ArtistSong</code>, <code>Artist</code>, and depending on the 
+      endpoint, <code>Album</code> as well. Four tables for display labels. 
+      Every read procedure had that join chain at its core.
+    </p>
+
+    <p>
+      I knew there had to be a better way. That instinct was the starting point.
+    </p>
+
+    <h3>3. The data itself</h3>
+
+    <p>
+      The third piece was realizing what the data actually was: archival. 
+      28 million rows ingested once from two Kaggle datasets, never updated, 
+      never deleted, never written to again after the initial load. 
+      Historical Spotify chart data doesn't change. There are no concurrent writes to protect against. 
+      There are no update anomalies to prevent because there are no updates.
+    </p>
+
+    <p>
+      3NF is solving problems we don't have. And it's creating performance problems we do.
+    </p>
+
+    <div class="post-callout">
+      <p>
+        <strong>The core realization:</strong> 3NF is optimized for write safety. 
+        Star schema is optimized for read performance. 
+        Our database is written once and read constantly. 
+        We were using the wrong tool.
+      </p>
+    </div>
+
+    <h2>What star schema actually changes</h2>
+
+    <p>
+      A star schema puts the fact table at the center — in our case, 
+      <code>FACT_ChartEntry</code>, which holds every chart entry across every country and date — 
+      and surrounds it with flattened dimension tables. Instead of normalizing song data 
+      across five tables, everything about a song lives on <code>DIM_Song</code>. 
+      Instead of joining through <code>ArtistSong</code> to get artist names, 
+      a bridge table <code>Bridge_SongArtist</code> resolves the many-to-many relationship directly.
+    </p>
+
+    <p>
+      The practical effect: what used to require a four-table join chain is now a single 
+      indexed lookup on an integer primary key. At 28 million rows in <code>FACT_ChartEntry</code> 
+      alone, that difference compounds across every stored procedure, every API call, 
+      every page load.
+    </p>
+
+    <p>
+      Audio features, which we'd previously isolated in a separate <code>AudioFeatures</code> table 
+      to signal they were secondary data, moved onto <code>DIM_Song</code> as nullable columns. 
+      No extra join needed — they're just there if they exist, null if they don't. 
+      Album data did the same: instead of maintaining a surrogate key and a foreign key 
+      relationship for a display label, <code>album_name</code> is a plain string column 
+      on <code>DIM_Song</code>. No procedure groups by album. 
+      It was never a queryable entity — it was always just a label.
+    </p>
+
+    <h2>What the migration actually involved</h2>
+
+    <p>
+      I want to be honest here: it wasn't trivial. It wasn't a full rebuild from scratch, 
+      but it was a significant amount of work and it required careful sequencing.
+    </p>
+
+    <p>
+      The migration involved re-ingesting data into the new dimensional tables, 
+      rethinking the overall design to make sure everything mapped correctly, 
+      rewriting all seven read stored procedures that touched song or artist data, 
+      and repopulating all the pre-computed summary tables that feed the API at runtime. 
+      There was also refinement work afterward — the first pass wasn't perfectly optimized 
+      and loading performance needed tuning once the new schema was in place.
+    </p>
+
+    <p>
+      One specific issue worth calling out: the <code>IDENTITY</code> sequence restart 
+      after migration caused orphaned rows. The fix required a full delete-and-reinsert 
+      of the affected rows rather than an update — another reminder that in a write-once 
+      analytical database, the ingestion layer has to be designed to be re-runnable.
+    </p>
+
+    <p>
+      The eight population stored procedures — the expensive ones that run against 
+      <code>FACT_ChartEntry</code> directly and pre-compute the summary tables — 
+      required no changes at all. They operate on the fact table and summary tables, 
+      neither of which changed. That was a relief.
+    </p>
+
+    <h2>What the schema looks like now</h2>
+
+    <pre>FACT_ChartEntry          -- 28M rows. Center of the schema.
+  song_id   → DIM_Song
+  country_id → Country
+  chart_type_id → ChartType
+  snapshot_date, rank, streams, popularity...
+
+DIM_Song                 -- One row per unique track.
+  song_id, spotify_id, title
+  album_name, album_release_date  -- plain strings, no FK
+  danceability, energy, valence... -- audio features, nullable
+
+DIM_Artist               -- One row per unique artist.
+  artist_id, artist_name
+
+Bridge_SongArtist        -- Many-to-many resolution.
+  song_id, artist_id, artist_order</pre>
+
+    <p>
+      Six read procedures required no changes because they query only pre-computed 
+      summary tables — no song or artist dimension data needed. 
+      The seven that did change all followed the same pattern: 
+      replace the multi-table join chain with the star schema equivalents, 
+      read <code>album_name</code> directly from <code>DIM_Song</code> as a string.
+    </p>
+
+    <hr class="post-divider">
+
+    <h2>What I'd tell someone earlier in the same project</h2>
+
+    <p>
+      Think about what the future of your data actually is before you design your schema — 
+      not just what the data is, but what will be done with it and whether it will ever change.
+    </p>
+
+    <p>
+      The question that unlocks the right decision is simple: 
+      <strong>is this database transactional or analytical?</strong> 
+      If records are being created, updated, and deleted regularly, 
+      3NF's write protections are genuinely valuable. 
+      If data is written once and read constantly — especially at scale — 
+      3NF is adding join overhead with no corresponding benefit.
+    </p>
+
+    <p>
+      We didn't need a transactional database because we were never going to update the data. 
+      We needed to store 28 million rows as efficiently as possible and get aggregated results 
+      to the user as quickly as possible. Star schema is built for exactly that workload.
+    </p>
+
+    <p>
+      There's also a forward-looking argument: star schema makes future data expansion 
+      significantly easier. If we were to backfill data — add new countries, 
+      extend the date range, bring in a third dataset — the dimensional model 
+      accommodates that more cleanly than a normalized schema would. 
+      New rows in the fact table, new or updated dimension rows, 
+      repopulate the summary tables. The architecture doesn't fight you.
+    </p>
+
+    <p>
+      The migration cost us time. But the alternative — shipping a product with 
+      the wrong schema baked in and performance problems that couldn't be tuned away — 
+      would have cost more. Sometimes the right call is the harder one.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Next Post</span>
+    <a href="bulk-insert-encoding-error.html">The BULK INSERT encoding error I spent two hours on →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From 191-column CSV to an ordering decision: scoping a data tool for a problem POS systems don't solve — Leena Komenski</title>
+<meta name="description" content="The sales data existed. The ordering decisions were being made on gut feel. The gap between them was a 191-column CSV export nobody had time to parse during an order shift. Here's the analysis, the architecture, and the contractor proposal I built before a single line of code was written.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Operations · Systems Design · Analytics</p>
+    <h1 class="post-title">From 191-column CSV to an ordering decision: scoping a data tool for a problem POS systems don't solve</h1>
+    <p class="post-meta">Business Analysis · Technical Scoping · Contractor Proposal · 10 min read</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the role</p>
+        <p class="project-ref-name">Sandwich Ordering Intelligence Tool</p>
+        <p class="project-ref-sub">Independent contractor project · Local food & beverage business · Tacoma, WA</p>
+      </div>
+      <span class="status-badge">Proposal delivered · Awaiting decision</span>
+    </div>
+
+    <div class="post-callout honest">
+      <span class="callout-label">Status note</span>
+      <p>
+        This tool has not been built yet. The proposal has been delivered
+        and a decision is pending. This post is about the analysis,
+        the scoping, and the proposal — because that work is the portfolio artifact
+        at this stage. The thinking is the work.
+      </p>
+    </div>
+
+    <p>
+      The business had been ordering sandwiches the same way for years:
+      one person, institutional memory, gut feel about what sold last week.
+      The POS system captured every transaction automatically —
+      item-level sales data, updated daily.
+      But surfacing that data for an ordering decision meant either
+      reading an aggregate dashboard that showed totals without patterns,
+      or exporting a 191-column CSV that nobody had time to parse
+      during an order shift.
+    </p>
+
+    <p>
+      The data existed. The gap was between the export and the decision.
+      And the person who had historically bridged that gap with experience
+      and memory was gone.
+    </p>
+
+    <p>
+      I identified the problem independently, analyzed the existing sales data
+      to understand what was actually there, scoped a phased technical solution,
+      researched the competitive landscape, and delivered a formal contractor proposal
+      — all before any build began.
+      Here's what that process looked like.
+    </p>
+
+    <h2>What the data analysis showed</h2>
+
+    <p>
+      The first step was understanding whether the POS data was actually useful
+      for ordering decisions — and if so, what it could and couldn't tell you.
+      I pulled approximately 1,278 records of item-level sales data
+      covering March through May 2026, across roughly 30 sandwich items.
+    </p>
+
+    <div class="finding-list">
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 01</p>
+        <p class="finding-headline">Day-of-week patterns were clear and consistent</p>
+        <p class="finding-body">
+          Aggregating sales by item and day of week revealed patterns
+          that were strong enough to drive ordering decisions.
+          Some items sold reliably on specific days.
+          Others had essentially flat demand across the week.
+          The patterns were there — they just weren't visible in the existing
+          dashboard view, which collapsed everything into weekly or monthly totals.
+        </p>
+      </div>
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 02</p>
+        <p class="finding-headline">External factors are structurally invisible to POS systems</p>
+        <p class="finding-body">
+          Sales volume on any given day is shaped by things that never touch
+          the POS: weather, school calendars, local events, seasonal patterns.
+          A hot Tuesday in June produces different sandwich demand
+          than a rainy Tuesday in November — but the POS records both
+          as "Tuesday" with no indication of why they differed.
+          Any ordering tool that relies purely on historical averages
+          will systematically under- or over-order on days where external
+          conditions push demand away from the norm.
+          Those factors have to be engineered in from outside the POS.
+        </p>
+      </div>
+
+      <div class="finding-item">
+        <p class="finding-label">Finding 03</p>
+        <p class="finding-headline">The ordering problem has the same root cause as the staffing problem</p>
+        <p class="finding-body">
+          This is the same structural issue I identified when rebuilding
+          the staffing framework: institutional knowledge living in a person,
+          not in a system, with no documented baseline to fall back on
+          when that person leaves. Ordering decisions and staffing decisions
+          are both judgment calls that could be grounded in data
+          but historically weren't. The POS has been capturing the relevant data
+          for both problems the entire time. The gap isn't the data —
+          it's the absence of a tool that makes that data usable
+          at the moment a decision needs to be made.
+        </p>
+      </div>
+
+    </div>
+
+    <h2>Why existing tools don't solve this</h2>
+
+    <p>
+      Before scoping a custom build, I looked at what already existed:
+      the POS vendor's native data connector, third-party forecasting tools,
+      and inventory management platforms in the same category.
+    </p>
+
+    <p>
+      The POS vendor's data connector surfaces the same aggregate dashboards
+      and CSV exports the business was already ignoring —
+      it doesn't add ordering intelligence, just data access.
+      Forecasting tools in this space are priced and designed
+      for mid-size restaurant chains with dedicated ops staff;
+      the pricing structure alone puts them out of reach for
+      an independent business at this scale.
+      Inventory management platforms at the small business price point
+      handle reorder thresholds for shelf-stable goods,
+      not perishable item ordering where the decision window
+      is "how many of this do I need for the next three days."
+    </p>
+
+    <p>
+      None of the tools I found solve the item-level ordering decision use case
+      for a small independent business at a price point that makes sense.
+      That gap — item-level ordering intelligence, external factor integration,
+      small business pricing — is the specific problem this tool addresses.
+      It's also why the same problem almost certainly exists at every
+      independent business running a modern POS system that captures
+      this level of transaction data.
+    </p>
+
+    <h2>The technical architecture</h2>
+
+    <p>
+      The stack was chosen to be deployable, maintainable,
+      and extensible — specifically designed so that a future ML layer
+      could be added without rebuilding the foundation.
+    </p>
+
+    <div class="stack-row">
+      <span class="stack-label">Frontend</span>
+      <span class="stack-value"><strong>React</strong> — staff-facing ordering interface, accessible from any phone or browser. Inventory input screen for current shelf counts, recommended order quantities per item as output.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">Backend</span>
+      <span class="stack-value"><strong>FastAPI (Python)</strong> — handles data pipeline, statistical calculations, and external API integration. Python chosen specifically for future ML extensibility.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">Database</span>
+      <span class="stack-value"><strong>PostgreSQL</strong> — stores historical sales records, with schema designed to accept retroactive weather and school calendar attachment. Historical context columns are NULL now, populated as data becomes available.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">Deployment</span>
+      <span class="stack-value"><strong>Vercel + Render</strong> — frontend on Vercel, backend on Render. Both have free tiers appropriate for this scale.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">External API</span>
+      <span class="stack-value"><strong>Open-Meteo</strong> — free weather API, no key required, supports both historical data and forecasts. Historical weather data retroactively attached to existing sales records to build a training dataset for Phase 2.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">Phase 1 logic</span>
+      <span class="stack-value">Statistical averaging by day of week, applied to the specific coverage window of each order day. Deterministic, auditable, explainable — no black box.</span>
+    </div>
+    <div class="stack-row">
+      <span class="stack-label">Phase 2 path</span>
+      <span class="stack-value">Historical weather + school calendar data retroactively attached to existing records. ML layer added on top of the same data structure without schema changes.</span>
+    </div>
+
+    <p style="margin-top: 28px;">
+      The intentional design decision here: Phase 1 produces useful recommendations
+      immediately using statistical averaging.
+      Phase 2 makes those recommendations more accurate using the historical context
+      that Phase 1 is quietly building in the background.
+      The architecture supports the future without requiring it.
+    </p>
+
+    <h2>The proposal</h2>
+
+    <p>
+      The deliverable at this stage was a formal contractor proposal —
+      not a rough estimate, but a scoped document covering the business problem,
+      the gap analysis, the competitive landscape, the phased technical plan,
+      and the pricing with justification built from actual sales figures.
+    </p>
+
+    <p>
+      The pricing was positioned deliberately below market rate —
+      roughly a third of what a comparable custom build would cost
+      from an independent development shop.
+      That gap was justified in the proposal using the business's own revenue data:
+      given average daily sales volume and the ordering decision window,
+      the tool pays for itself in reduced waste within a predictable timeframe.
+      That's not a claim made in the abstract — it's grounded in the numbers
+      that were already in the analysis.
+    </p>
+
+    <p>
+      The proposal also included a pre-build checklist:
+      specific data cleanup and categorization steps that needed to happen
+      in the POS before the build could begin, so the data pipeline
+      would have clean inputs. Catching that before work started
+      was the difference between a smooth Phase 1 and a Phase 1
+      that gets blocked by data quality problems halfway through.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">Why scoping before building matters</span>
+      <p>
+        Every hour spent on the wrong architecture or the wrong scope
+        costs more to undo than it cost to build.
+        A proposal that defines the problem clearly, identifies the constraints,
+        specifies what's in and out of scope, and surfaces the pre-build
+        dependencies isn't overhead — it's the work that makes
+        the build go correctly.
+      </p>
+      <p>
+        In this case the proposal also functions as a standalone artifact:
+        if the project doesn't move forward, the analysis and scoping document
+        still exist as a complete record of what was found and why.
+        That's intentional. Good scoping work should be valuable
+        regardless of what happens next.
+      </p>
+    </div>
+
+    <hr class="post-divider">
+
+    <h2>The larger pattern</h2>
+
+    <p>
+      This is the third time I've identified a version of the same problem
+      at the same business: the data exists, the decision is being made
+      without it, and the gap is the absence of a tool or framework
+      that makes the data usable at the moment it's needed.
+      Staffing, ordering, operational documentation — all three had the same root cause.
+    </p>
+
+    <p>
+      That pattern isn't specific to this business.
+      It exists at every small independent business running a modern POS system
+      that captures transaction data it never fully uses.
+      The data infrastructure is already there.
+      The intelligence layer on top of it isn't.
+    </p>
+
+    <p>
+      Building that layer — identifying the gap, analyzing what's available,
+      designing something that fits the actual workflow,
+      and delivering it in a form the business can use and maintain —
+      is the work I find most interesting and the work I'm most equipped to do.
+      The sandwich ordering tool is one instance of it.
+      It won't be the last.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="pos-staffing-analysis.html">← Using POS transaction data to fix a staffing problem</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

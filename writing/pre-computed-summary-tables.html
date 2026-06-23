@@ -1,0 +1,358 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why the API never touches the fact table — Leena Komenski</title>
+<meta name="description" content="28 million rows in a single fact table. No machine was going to sift through that at runtime. Here's why pre-computed summary tables were the only real option, how the dependency chain emerged during the build, and what breaks if you run population procedures out of order.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Data Engineering · Systems Design</p>
+    <h1 class="post-title">Why the API never touches the fact table: designing for a 28M-row read workload</h1>
+    <p class="post-meta">SQL Server · Architecture · Pre-Computation · 10 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the project</p>
+        <p class="project-ref-name">Hidden Gem Music</p>
+        <p class="project-ref-sub">Cross-regional music discovery platform · 28M rows · SQL Server · .NET 9</p>
+      </div>
+      <a href="../projects.html" class="text-link">View Project →</a>
+    </div>
+
+    <p>
+      The central fact table in the Hidden Gem Music database holds 28 million rows —
+      every chart entry, across every country, across every date in both datasets.
+      The application needs to answer questions like: which songs appear in multiple
+      countries? How long does it take a song to cross a border?
+      Which country is most isolated from global trends?
+    </p>
+
+    <p>
+      Answering those questions by querying 28 million rows at runtime was never
+      a realistic option. The realization wasn't gradual — looking at the scale of
+      the data made it immediately obvious that no machine was going to sift through
+      that at request time, and that even with indexes and optimized joins,
+      the math didn't work. The application would be unusable.
+    </p>
+
+    <p>
+      The solution is pre-computation: a set of summary tables that are built once
+      by expensive population procedures, and then queried cheaply at runtime
+      by fast read procedures. The API never touches <code>FACT_ChartEntry</code> directly.
+      Every endpoint reads from a pre-computed result.
+      This post is about why that architecture exists, how it's structured,
+      and what the dependency chain between the summary tables actually means
+      in practice.
+    </p>
+
+    <h2>The two classes of stored procedure</h2>
+
+    <p>
+      The database has two fundamentally different kinds of stored procedure,
+      and keeping them distinct is the foundation of the whole architecture.
+    </p>
+
+    <p>
+      <strong>Population procedures</strong> are expensive. They run against
+      <code>FACT_ChartEntry</code> directly, doing full aggregations across
+      millions of rows, computing cross-country comparisons, calculating date
+      differences, ranking songs by presence count. They run once — on data load,
+      or when something in the underlying data changes. They are never called
+      at request time. Ever.
+    </p>
+
+    <p>
+      <strong>Read procedures</strong> are cheap. They query only pre-computed
+      summary tables, which are small, indexed, and already contain the answer.
+      These are what the API calls. A typical read procedure is a handful of
+      SELECT statements against tables with thousands of rows, not millions.
+      Response times are fast because the work was already done.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">The core principle</span>
+      <p>
+        Anything the application needs to display that requires aggregation,
+        cross-country comparison, or calculation across the full dataset
+        must be pre-computed and stored — not derived at request time.
+        The raw data answers the question once. The summary table holds that answer
+        for every subsequent request.
+      </p>
+    </div>
+
+    <h2>What each summary table holds</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Table</th>
+          <th>What it stores</th>
+          <th>What it feeds</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>SongCountryPresence</td>
+          <td>For each song and year: how many distinct countries it charted in</td>
+          <td>Hidden Gems logic, overlap calculations</td>
+        </tr>
+        <tr>
+          <td>SongCountryChart</td>
+          <td>Which songs charted in which countries, deduplicated per year</td>
+          <td>Country comparison, overlap percentage</td>
+        </tr>
+        <tr>
+          <td>DiscoveryGapByDay</td>
+          <td>For each song: origin country and days to each subsequent country</td>
+          <td>KPI 2 (Discovery Gap), gap distribution histogram</td>
+        </tr>
+        <tr>
+          <td>PeakReachBySong</td>
+          <td>Highest simultaneous country count per song, with date</td>
+          <td>KPI 4 (Peak Cross-Regional Reach)</td>
+        </tr>
+        <tr>
+          <td>GlobalOverlapByYear</td>
+          <td>Year-by-year overlap rate and average countries per song</td>
+          <td>Dashboard trend line, KPI 1</td>
+        </tr>
+        <tr>
+          <td>CountryYearStats</td>
+          <td>Per country per year: total charted, shared, unique, overlap %</td>
+          <td>Country profile, comparison page, KPI 1</td>
+        </tr>
+        <tr>
+          <td>IsolationScoreByCountry</td>
+          <td>Per country: isolation score %, isolation tier</td>
+          <td>KPI 3 (Most Isolated Region), isolation bar chart</td>
+        </tr>
+        <tr>
+          <td>HiddenGems</td>
+          <td>Songs charting in N+ countries but absent from a given country</td>
+          <td>Hidden Gems screen, country page preview</td>
+        </tr>
+        <tr>
+          <td>TopSongByCountryYear</td>
+          <td>One representative top song per country per year</td>
+          <td>Globe card display</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Each of these tables represents one pre-answered question.
+      The read procedures don't compute — they retrieve.
+    </p>
+
+    <h2>The dependency chain — and how it emerged</h2>
+
+    <p>
+      The population procedures have to run in a specific order.
+      Some summary tables depend on other summary tables being populated first —
+      they don't query <code>FACT_ChartEntry</code> directly, they query
+      an already-computed result. Run them out of order and you get empty joins,
+      wrong counts, or silent data gaps with no error to tell you what happened.
+    </p>
+
+    <p>
+      This dependency chain wasn't designed upfront. It emerged as the population
+      procedures were built, when it became clear that certain calculations
+      required intermediate results that only existed in another summary table.
+      <code>DiscoveryGapByDay</code> needs song-country presence data.
+      <code>GlobalOverlapByYear</code> needs presence counts.
+      <code>IsolationScoreByCountry</code> needs country-year statistics.
+      Once that structure became visible, the order had to be documented and enforced —
+      because nothing in SQL Server enforces it for you.
+    </p>
+
+    <div class="chain-diagram">
+      <div class="chain-step"><span class="chain-num">1.</span> sp_PopulateSongCountryPresence <span class="chain-arrow">→</span> <em>feeds everything downstream</em></div>
+      <div class="chain-step"><span class="chain-num">2.</span> sp_PopulateSongCountryChart <span class="chain-arrow">→</span> <em>feeds comparison and overlap logic</em></div>
+      <div class="chain-step"><span class="chain-num">3.</span> sp_PopulateDiscoveryGapByDay <span class="chain-arrow">→</span> <em>depends on SongCountryPresence</em></div>
+      <div class="chain-step"><span class="chain-num">4.</span> sp_PopulatePeakReachBySong <span class="chain-arrow">→</span> <em>depends on SongCountryPresence</em></div>
+      <div class="chain-step"><span class="chain-num">5.</span> sp_PopulateGlobalOverlapByYear <span class="chain-arrow">→</span> <em>depends on SongCountryPresence</em></div>
+      <div class="chain-step"><span class="chain-num">6.</span> sp_PopulateCountryYearStats <span class="chain-arrow">→</span> <em>depends on SongCountryChart</em></div>
+      <div class="chain-step"><span class="chain-num">7.</span> sp_PopulateIsolationScoreByCountry <span class="chain-arrow">→</span> <em>depends on CountryYearStats</em></div>
+      <div class="chain-step"><span class="chain-num">8.</span> sp_PopulateTrendVelocityBySong</div>
+      <div class="chain-step"><span class="chain-num">9.</span> sp_PopulateHiddenGems <span class="chain-arrow">→</span> <em>depends on SongCountryPresence + SongCountryChart</em></div>
+      <div class="chain-step"><span class="chain-num">10.</span> sp_PopulateTopSongByCountryYear <span class="chain-arrow">→</span> <em>lightweight globe display data</em></div>
+      <div class="chain-step"><span class="chain-num">11.</span> sp_PopulateTopSongByCountryYear (final pass)</div>
+    </div>
+
+    <p>
+      <code>SongCountryPresence</code> is the foundation. It counts how many distinct
+      countries each song charted in per year, with Viral 50 entries excluded.
+      Almost everything downstream depends on that count existing first.
+      If you truncate <code>SongCountryPresence</code> and don't repopulate it before
+      running <code>sp_PopulateHiddenGems</code>, the Hidden Gems table populates with
+      zero rows and no error is thrown. The data is just wrong.
+    </p>
+
+    <div class="post-callout warning">
+      <span class="callout-label">What breaks if you run out of order</span>
+      <p>
+        SQL Server will not warn you that a dependency table is empty.
+        Population procedures will complete successfully with zero rows written
+        to the target table if the upstream table they depend on hasn't been populated.
+        The verification step after every repopulation run isn't optional —
+        it's the only thing that catches a dependency violation.
+      </p>
+    </div>
+
+    <h2>What the read procedures actually do</h2>
+
+    <p>
+      Once the summary tables are populated, the read procedures are straightforward.
+      Here's the difference in practice:
+    </p>
+
+    <p>
+      A naive "what's the global overlap rate?" query against the raw data would look
+      something like this — a full aggregation across the fact table:
+    </p>
+
+    <pre>-- What you do NOT want at runtime
+SELECT
+    COUNT(DISTINCT song_id) AS total_songs,
+    COUNT(DISTINCT CASE WHEN country_count >= 2
+        THEN song_id END) AS songs_in_2plus_countries
+FROM (
+    SELECT song_id, COUNT(DISTINCT country_id) AS country_count
+    FROM FACT_ChartEntry
+    WHERE chart_type_id != 2
+    GROUP BY song_id, YEAR(snapshot_date)
+) sub;</pre>
+
+    <p>
+      That query scans 28 million rows, does a full aggregation, and returns one number.
+      At runtime, on a user request, that's not acceptable.
+    </p>
+
+    <p>
+      The actual read procedure queries <code>GlobalOverlapByYear</code>,
+      which already has the answer:
+    </p>
+
+    <pre>-- What actually runs at request time
+SELECT
+    overlap_pct,
+    total_unique_songs,
+    songs_in_2plus_countries
+FROM GlobalOverlapByYear
+WHERE chart_year BETWEEN @YearStart AND @YearEnd;</pre>
+
+    <p>
+      Same answer. Milliseconds instead of seconds.
+      The work happened once, at population time.
+      Every subsequent request just reads the result.
+    </p>
+
+    <h2>The tradeoff you're accepting</h2>
+
+    <p>
+      Pre-computation trades freshness for speed. The summary tables reflect
+      the state of the data at the last time the population procedures ran.
+      If something changes in <code>FACT_ChartEntry</code> — a fix, a re-ingestion,
+      an exclusion rule update — the summary tables are stale until you repopulate.
+    </p>
+
+    <p>
+      For Hidden Gem Music, this tradeoff costs nothing. The data is historical
+      and archival — it doesn't change after ingestion. The population procedures
+      ran once when the data was loaded, and the summary tables have been correct
+      since then. There is no freshness concern because there is no new data arriving.
+    </p>
+
+    <p>
+      In a production system with live data, this would be a real architectural
+      consideration: how often do you repopulate, what triggers it,
+      what do users see during a repopulation run?
+      For a write-once analytical database, those questions don't apply —
+      which is part of why this architecture is such a clean fit for this workload.
+    </p>
+
+    <hr class="post-divider">
+
+    <h2>The principle underneath it</h2>
+
+    <p>
+      The pre-computation architecture is a specific application of a broader principle:
+      <strong>match your data architecture to your actual workload,
+      not to the workload you might have.</strong>
+    </p>
+
+    <p>
+      A transactional database with live writes needs a different architecture than
+      an analytical database with a fixed historical dataset.
+      A system that needs real-time aggregations needs a different architecture than
+      one where the aggregations never change.
+      The mistake is applying a general pattern without asking whether the pattern
+      fits the specific constraints you're working under.
+    </p>
+
+    <p>
+      For this project: 28 million rows, written once, read constantly,
+      no updates ever. The answer was obvious once the problem was stated clearly.
+      The implementation — eleven population procedures, a strict dependency chain,
+      summary tables that give the API pre-answered questions — followed from that.
+    </p>
+
+    <p>
+      The dependency chain wasn't planned. It emerged as each population procedure
+      was written and revealed what it needed from upstream.
+      That's fine — recognizing the dependency structure and documenting it correctly
+      is what matters, not whether you saw it coming.
+      Architecture doesn't always arrive fully formed.
+      Sometimes you build it and then you see what it is.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="viral-50-contamination.html">← Why Viral 50 exclusion has to happen at the population layer</a>
+  </div>
+  <div style="text-align:right">
+    <span class="post-nav-label">Next Post</span>
+    <a href="two-datasets-one-analysis.html">Two datasets that can't be directly compared →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

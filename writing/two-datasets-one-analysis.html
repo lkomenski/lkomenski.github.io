@@ -1,0 +1,312 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two datasets that can't be directly compared — and how we handled it — Leena Komenski</title>
+<meta name="description" content="Dataset 1 measures popularity with raw stream counts. Dataset 2 uses Spotify's proprietary 0-100 score. They are not the same thing. Here's the schema decision that kept them separate, why it had to be enforced at the stored procedure layer, and what breaks if you ignore it.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Data Engineering · Analytics · Schema Design</p>
+    <h1 class="post-title">Two datasets that can't be directly compared — and how we handled it</h1>
+    <p class="post-meta">SQL Server · Schema Design · Data Integrity · 9 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the project</p>
+        <p class="project-ref-name">Hidden Gem Music</p>
+        <p class="project-ref-sub">Cross-regional music discovery platform · 28M rows · SQL Server · .NET 9</p>
+      </div>
+      <a href="../projects.html" class="text-link">View Project →</a>
+    </div>
+
+    <p>
+      Hidden Gem Music is built on two Kaggle datasets that cover overlapping
+      subject matter — Spotify chart data across dozens of countries —
+      but differ in almost every structural detail. Different country formats,
+      different song identifiers, different chart types, different date ranges,
+      and crucially: different ways of measuring popularity.
+    </p>
+
+    <p>
+      Most of those differences can be bridged. The popularity metrics cannot.
+      Dataset 1 measures popularity with raw stream counts.
+      Dataset 2 uses Spotify's proprietary 0–100 popularity score.
+      These are not the same thing, they are not convertible to each other,
+      and putting them in the same column or using them in the same calculation
+      produces a number that is analytically meaningless.
+    </p>
+
+    <p>
+      This isn't a bug that showed up during testing. It's a constraint
+      that was visible during schema design and had to be built around
+      from the beginning. Here's how we handled it and why the decisions
+      made at the schema level had to be enforced all the way through
+      to the stored procedure layer.
+    </p>
+
+    <h2>What the two datasets actually measure</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Dataset 1 (2017–2021)</th>
+          <th>Dataset 2 (2023–2025)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Coverage</td>
+          <td>Top 200 + Viral 50, every 2–3 days</td>
+          <td>Top 50 per country, daily</td>
+        </tr>
+        <tr>
+          <td>Country format</td>
+          <td>Full name ("United States")</td>
+          <td>ISO code ("US")</td>
+        </tr>
+        <tr>
+          <td>Song identifier</td>
+          <td>Spotify URL (ID parsed from URL)</td>
+          <td>Native Spotify ID</td>
+        </tr>
+        <tr>
+          <td>Popularity metric</td>
+          <td>Raw stream count (BIGINT, can be NULL for Viral 50)</td>
+          <td>Proprietary score 0–100 (TINYINT)</td>
+        </tr>
+        <tr>
+          <td>Movement data</td>
+          <td>Categorical string (MOVE_UP, MOVE_DOWN, SAME, NEW_ENTRY)</td>
+          <td>Integer deltas (daily_movement, weekly_movement)</td>
+        </tr>
+        <tr>
+          <td>Audio features</td>
+          <td>None</td>
+          <td>13 columns (danceability, energy, valence, tempo, etc.)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The stream count vs. popularity score difference is the most important one.
+      A song with 5 million streams in 2019 cannot be meaningfully compared
+      to a song with a popularity score of 72 in 2024.
+      The first is an absolute count of listening events.
+      The second is a relative, proprietary score that Spotify recalculates
+      continuously based on recent plays, velocity, and other undisclosed factors.
+      The scale, the methodology, and the meaning are all different.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">Why you can't convert between them</span>
+      <p>
+        Stream counts are absolute and historical — they represent something
+        that happened and was measured. Spotify's popularity score is relative
+        and dynamic — it reflects current momentum against all other tracks
+        at a given moment. There is no conversion formula.
+        A song with 10 million streams might have a popularity score of 40
+        or 90 depending on when you look and what else is popular at that moment.
+      </p>
+    </div>
+
+    <h2>The schema decision</h2>
+
+    <p>
+      The decision was made during schema design, before any data was ingested:
+      store both metrics as separate nullable columns on <code>FACT_ChartEntry</code>,
+      never merge them, and enforce that separation in every stored procedure
+      that touches either column.
+    </p>
+
+    <pre>-- FACT_ChartEntry — relevant columns
+streams     BIGINT   NULL,  -- DS1 Top 200 only. NULL for Viral 50 + all DS2.
+popularity  TINYINT  NULL,  -- DS2 only. NULL for all DS1.
+                            -- Never used in the same calculation.</pre>
+
+    <p>
+      This means every row in <code>FACT_ChartEntry</code> has either a stream count
+      or a popularity score — never both, because no row belongs to both datasets.
+      The separation is enforced by the data itself:
+      DS1 rows have <code>streams</code> populated and <code>popularity</code> NULL.
+      DS2 rows have <code>popularity</code> populated and <code>streams</code> NULL.
+    </p>
+
+    <p>
+      Storing them separately rather than trying to normalize them into a single
+      column was a deliberate choice. The temptation with incompatible metrics
+      is to find a normalization approach — divide streams by some constant,
+      scale to a 0–100 range, something that produces a single comparable number.
+      That approach produces a number that looks comparable but isn't.
+      The math works. The meaning doesn't.
+    </p>
+
+    <div class="post-callout warning">
+      <span class="callout-label">What goes wrong if you ignore this</span>
+      <p>
+        Averaging <code>streams</code> and <code>popularity</code> together —
+        or treating a song's popularity score as equivalent to its stream count
+        for ranking purposes — produces output that is internally consistent
+        but analytically wrong. The result would tell you something.
+        It just wouldn't tell you what you thought it was telling you.
+        That's the most dangerous kind of wrong number.
+      </p>
+    </div>
+
+    <h2>How the separation is enforced in practice</h2>
+
+    <p>
+      A schema decision only holds if it's respected throughout the codebase.
+      The two columns being separate doesn't prevent a careless stored procedure
+      from joining them. Enforcing the constraint meant making it explicit
+      in every population and read procedure that touches popularity data.
+    </p>
+
+    <p>
+      In practice this means a few things:
+    </p>
+
+    <p>
+      <strong>KPI calculations never mix the two metrics.</strong>
+      The Global Overlap Rate, Discovery Gap, and all other dashboard KPIs
+      are calculated from chart presence — which country a song charted in,
+      on which date, at what rank. Rank is comparable across both datasets.
+      Neither streams nor popularity feeds into the core KPI calculations directly.
+    </p>
+
+    <p>
+      <strong>Any procedure that surfaces popularity data filters by dataset.</strong>
+      If a read procedure needs to return something about a song's popularity,
+      it specifies which metric it's using and filters accordingly —
+      either <code>WHERE streams IS NOT NULL</code> for DS1 data
+      or <code>WHERE popularity IS NOT NULL</code> for DS2 data.
+      Never both in the same result set without explicit labeling.
+    </p>
+
+    <p>
+      <strong>The movement columns have the same constraint.</strong>
+      DS1's <code>trend</code> column is a categorical string.
+      DS2's <code>daily_movement</code> and <code>weekly_movement</code>
+      are integer deltas. They measure the same concept — how a song's rank
+      is changing — but in different formats that aren't directly comparable.
+      Both are stored as separate nullable columns.
+      The <code>TrendVelocityBySong</code> pre-computed table normalizes them
+      into a common format at population time so read procedures
+      never have to handle the discrepancy at runtime.
+    </p>
+
+    <h2>What the project can and can't say about the two periods</h2>
+
+    <p>
+      Keeping the metrics separate also shapes what the application can honestly claim.
+      The 22-month gap between the two datasets — December 2021 to October 2023 —
+      is documented on the welcome screen and marked visually in every time-series
+      chart. But the incompatibility of the popularity metrics means the limitation
+      goes further than just the gap.
+    </p>
+
+    <p>
+      The application can compare chart overlap across both periods —
+      which songs appeared in multiple countries, how many days it took
+      a song to cross borders, which markets are most isolated.
+      Those questions are answered using rank and presence data,
+      which is comparable across datasets.
+    </p>
+
+    <p>
+      The application cannot say "songs in 2019 were more popular than songs in 2024"
+      using the available metrics, because the metrics are different.
+      It cannot rank a 2018 song against a 2024 song by popularity.
+      Every visualization that involves popularity data is scoped
+      to one dataset or the other, never both combined.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">The principle</span>
+      <p>
+        Understanding what your data <em>can't</em> tell you is as important
+        as understanding what it can. Building that constraint into the schema
+        — rather than leaving it as a note in a readme that someone might miss —
+        means the application can't accidentally produce a misleading answer
+        even if a future stored procedure is written without that context in mind.
+      </p>
+    </div>
+
+    <hr class="post-divider">
+
+    <h2>Why this decision belonged at schema design time</h2>
+
+    <p>
+      The incompatibility between stream counts and popularity scores
+      was visible as soon as the two datasets were examined side by side.
+      One has a <code>streams</code> column. The other has a <code>popularity</code> column.
+      They're different column names, different data types, different scales.
+      The constraint didn't need to be discovered — it was there from the start.
+    </p>
+
+    <p>
+      Making the decision at schema design time rather than deferring it
+      meant that every stored procedure written afterward was written
+      with the constraint already in place. No procedure was written
+      assuming the metrics were comparable and then had to be rewritten
+      when that assumption turned out to be wrong.
+    </p>
+
+    <p>
+      That's the value of understanding your data before you build with it.
+      Not every constraint can be anticipated — but the ones that are visible
+      at the start should be built around at the start.
+      The alternative is discovering them later, when they've already
+      propagated through the codebase and have to be fixed everywhere at once.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="identity-sequence-restart.html">← The IDENTITY sequence restart that orphaned my ChartEntry rows</a>
+  </div>
+  <div style="text-align:right">
+    <span class="post-nav-label">Next Post</span>
+    <a href="pos-staffing-analysis.html">Using POS data to fix a staffing problem nobody could articulate →</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>

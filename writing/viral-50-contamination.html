@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Viral 50 exclusion has to happen at the population layer — Leena Komenski</title>
+<meta name="description" content="The Viral 50 measures rate-of-spread, not sustained listener demand. Mixing it into overlap and discovery gap calculations produces numbers that are technically labeled correctly but analytically meaningless. Here's how I caught it, why the fix had to happen at the population layer, and what changed.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-name">Leena Komenski</a>
+  <ul class="nav-links">
+    <li><a href="../writing.html" style="color:var(--dark)">Writing</a></li>
+    <li><a href="../projects.html">Projects</a></li>
+    <li><a href="../about.html">About</a></li>
+    <li><a href="#" class="nav-resume">Resume ↓</a></li>
+  </ul>
+  <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+</nav>
+
+<div class="post-hero">
+  <div class="post-hero-inner">
+    <a href="../writing.html" class="post-back">← All Writing</a>
+    <p class="post-category">Data Engineering · Analytics · QA</p>
+    <h1 class="post-title">Why Viral 50 exclusion has to happen at the population layer, not the read layer</h1>
+    <p class="post-meta">SQL Server · Stored Procedures · Data Integrity · 10 min read · Hidden Gem Music Capstone</p>
+  </div>
+</div>
+
+<div class="post-body">
+  <div class="post-body-inner">
+
+    <div class="project-ref">
+      <div>
+        <p class="project-ref-label">From the project</p>
+        <p class="project-ref-name">Hidden Gem Music</p>
+        <p class="project-ref-sub">Cross-regional music discovery platform · 28M rows · SQL Server · .NET 9</p>
+      </div>
+      <a href="../projects.html" class="text-link">View Project →</a>
+    </div>
+
+    <p>
+      Dataset 1 contains two chart types: the Top 200 and the Viral 50.
+      They are both stored in <code>FACT_ChartEntry</code>, distinguished by
+      <code>chart_type_id</code>. The Viral 50 entries are labeled clearly in the data.
+      For a long time, that felt like enough.
+    </p>
+
+    <p>
+      It wasn't. The label doesn't protect you from what happens when you mix two
+      fundamentally different measurements into the same calculation.
+      Every summary table in the database was contaminated by Viral 50 entries —
+      and because all read stored procedures query pre-computed summary tables,
+      the fix had to happen at the population layer, not the read layer.
+      This post is about how I caught it, why the fix location matters,
+      and what the KPI values looked like before and after.
+    </p>
+
+    <h2>What the Viral 50 actually measures</h2>
+
+    <p>
+      The Top 200 ranks songs by raw stream count — sustained listener demand.
+      A song on the Top 200 is there because people are actively choosing to listen to it.
+    </p>
+
+    <p>
+      The Viral 50 ranks songs by rate-of-spread — shares, playlist adds,
+      social media activity, growing buzz. A song on the Viral 50 is gaining momentum.
+      It may have very few total streams. It is not necessarily a song people are
+      choosing to listen to in large numbers yet.
+    </p>
+
+    <div class="post-callout insight">
+      <span class="callout-label">The core distinction</span>
+      <p>
+        Top 200: sustained demand. People are listening to this.<br>
+        Viral 50: rate of spread. People are sharing this.<br><br>
+        These are different signals. They should never be averaged together,
+        and they should never contribute to the same overlap calculation.
+      </p>
+    </div>
+
+    <p>
+      The Hidden Gem Music project is built around a specific question:
+      which songs are genuinely popular across multiple countries
+      that haven't crossed over into a given local market?
+      "Genuinely popular" means sustained listener demand.
+      The Viral 50 doesn't measure that.
+      Including it in the overlap calculations meant the answer to our core question
+      was partially wrong.
+    </p>
+
+    <h2>How I caught it</h2>
+
+    <p>
+      I was doing a full comb-through of the dashboard after the Discovery Gap
+      investigation was resolved. I was looking at the Global Overlap charts —
+      checking that the numbers felt right, that the trends made sense,
+      that the picture the dashboard was painting was analytically defensible.
+    </p>
+
+    <p>
+      Something felt off. The charts were labeled correctly —
+      they said what they were showing. But I started asking a different question:
+      not "is this labeled right?" but "is what this is showing actually meaningful?"
+    </p>
+
+    <p>
+      The Viral 50 doesn't appear anywhere else in the application.
+      The Hidden Gems logic, the country comparisons, the globe summaries —
+      all of those are built around the concept of sustained chart presence,
+      which means Top 200 and Top 50 data. The Viral 50 had never been part
+      of the analytical story we were telling. It was only in the summary tables
+      because it was in <code>FACT_ChartEntry</code> and nobody had explicitly excluded it
+      from the population procedures.
+    </p>
+
+    <p>
+      Once I saw that, the question became: what is a user actually concluding
+      when they look at a "26% global overlap rate"? Are they concluding that
+      26% of charting songs appear in multiple countries by sustained listener demand?
+      Or are they concluding that 26% of songs appear in multiple countries
+      by some mix of demand and viral spread that we've never defined or disclosed?
+    </p>
+
+    <p>
+      The second one is not a meaningful number. And putting it on a dashboard
+      as though it is would be misleading.
+    </p>
+
+    <h2>Why the fix had to happen at the population layer</h2>
+
+    <p>
+      The database architecture uses pre-computed summary tables for all read operations.
+      The 28 million rows in <code>FACT_ChartEntry</code> are never queried at request time —
+      every API call reads from a summary table that was pre-populated by a population
+      stored procedure. This is what makes the application fast.
+    </p>
+
+    <p>
+      It also means that if the contamination is in the summary tables,
+      it can't be fixed in the read layer. You can't add a
+      <code>WHERE chart_type_id != 2</code> filter to a read SP
+      that's querying <code>SongCountryPresence</code> — the Viral 50 data
+      is already baked into every row of that table.
+      The fix has to happen where the summary tables are built.
+    </p>
+
+    <p>
+      Three population stored procedures were the root cause — the ones that
+      touch <code>FACT_ChartEntry</code> directly:
+    </p>
+
+    <pre>-- Added to all three population SPs:
+AND ce.chart_type_id != 2  -- Exclude Viral 50</pre>
+
+    <p>
+      The three procedures that needed the fix:
+    </p>
+
+    <pre>sp_PopulateSongCountryPresence   -- main WHERE clause
+sp_PopulateDiscoveryGapByDay     -- FirstAppearance CTE
+sp_PopulatePeakReachBySong       -- DailyReach CTE</pre>
+
+    <p>
+      The other population procedures don't touch <code>FACT_ChartEntry</code> directly —
+      they build from the already-fixed summary tables.
+      So fixing those three was sufficient.
+    </p>
+
+    <p>
+      After applying the fix, all six summary tables had to be repopulated
+      in strict dependency order, because each table feeds into the next:
+    </p>
+
+    <pre>sp_PopulateSongCountryPresence
+  → sp_PopulateDiscoveryGapByDay
+    → sp_PopulatePeakReachBySong
+      → sp_PopulateGlobalOverlapByYear
+        → sp_PopulateCountryYearStats
+          → sp_PopulateIsolationScoreByCountry</pre>
+
+    <p>
+      During repopulation, a regression surfaced: the <code>gap_days &gt; 0</code>
+      filter in <code>sp_PopulateDiscoveryGapByDay</code> had reverted to
+      <code>&gt;= 0</code> during the SP rewrite — re-introducing the day-zero
+      artifact problem that had been fixed in the previous investigation.
+      Caught it during verification, corrected it, repopulated again.
+    </p>
+
+    <h2>What changed in the numbers</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Pre-fix</th>
+          <th>Post-fix</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Global Overlap Rate</td>
+          <td>26%</td>
+          <td>25%</td>
+        </tr>
+        <tr>
+          <td>Discovery Gap median</td>
+          <td>4 days</td>
+          <td>12 days</td>
+        </tr>
+        <tr>
+          <td>Discovery Gap mean</td>
+          <td>38 days</td>
+          <td>108 days</td>
+        </tr>
+        <tr>
+          <td>Peak Cross-Regional Reach</td>
+          <td>70 countries — <em>abcdefu</em> by GAYLE</td>
+          <td>69 countries — <em>STAY</em> by The Kid LAROI & Justin Bieber</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The shifts are meaningful. A discovery gap median of 4 days versus 12 days
+      tells a different story about how music spreads. The Viral 50 inflated
+      the apparent speed of crossover — songs going viral spread faster
+      than songs gaining sustained popularity, so including them pulled
+      all the gap metrics down.
+    </p>
+
+    <p>
+      The peak reach winner also changed — which matters for any user
+      who would have looked at that KPI and concluded that
+      <em>abcdefu</em> was the most globally reaching song in the dataset.
+      It wasn't, by the metric we actually care about.
+      <em>STAY</em> was.
+    </p>
+
+    <hr class="post-divider">
+
+    <h2>The label isn't enough</h2>
+
+    <p>
+      The Viral 50 entries were always labeled correctly.
+      <code>chart_type_id = 2</code> was in the data from day one.
+      The charts on the dashboard said what they were showing.
+      None of that was the problem.
+    </p>
+
+    <p>
+      The problem was that a correct label on mixed data still produces
+      a misleading result if the mixing itself is wrong.
+      A user looking at a "global overlap rate" doesn't see the chart type breakdown —
+      they see a percentage that's supposed to tell them something about
+      how music crosses borders. If that percentage is contaminated by
+      a metric that measures something different, the label doesn't save them.
+    </p>
+
+    <p>
+      The question I started asking — not "is this labeled right?"
+      but "is what this is showing actually meaningful?" — is a different question.
+      It requires understanding what the data actually measures,
+      not just what it's called. And it requires being willing to slow down
+      on something that looks fine on the surface and ask whether it actually is.
+    </p>
+
+    <p>
+      The fix was three lines of SQL across three stored procedures
+      and a repopulation run. The investigation that got there
+      took considerably longer — and was worth every minute of it,
+      because the numbers that shipped were the right ones.
+    </p>
+
+  </div>
+</div>
+
+<div class="post-nav">
+  <div>
+    <span class="post-nav-label">Previous Post</span>
+    <a href="discovery-gap-contradiction.html">← When your KPI and your chart contradict each other</a>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-name">Leena Komenski</span>
+  <ul class="footer-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../writing.html">Writing</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">LinkedIn</a></li>
+  </ul>
+</footer>
+
+<script src="../app.js"></script>
+</body>
+</html>
