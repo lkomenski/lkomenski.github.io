@@ -77,7 +77,7 @@ nav {
   background-color: var(--warm-white);
 }
 
-.hero-inner { max-width: 840px; }
+.hero-inner { max-width: 840px; margin: 0 auto; }
 
 .hero-eyebrow {
   font-size: 12px;
@@ -593,7 +593,7 @@ footer {
   background-color: var(--warm-white);
 }
 
-.post-hero-inner { max-width: 740px; }
+.post-hero-inner { max-width: 1040px; margin: 0 auto; }
 
 .post-back {
   display: inline-block;
@@ -636,7 +636,48 @@ footer {
   background-color: var(--warm-white);
 }
 
-.post-body-inner { max-width: 680px; }
+.post-body-inner { min-width: 0; }
+
+.post-layout {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 60px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.post-sidebar { position: relative; }
+
+.post-toc {
+  position: sticky;
+  top: 80px;
+}
+
+.post-toc-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--light);
+  margin-bottom: 16px;
+  display: block;
+}
+
+.post-toc-list { list-style: none; }
+
+.post-toc-list li a {
+  font-size: 12px;
+  color: var(--light);
+  text-decoration: none;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+  display: block;
+  line-height: 1.5;
+  transition: color 0.15s;
+}
+
+.post-toc-list li:last-child a { border-bottom: none; }
+.post-toc-list a:hover { color: var(--mid); }
+.post-toc-list a.toc-active { color: var(--dark); }
 
 .post-body p {
   font-size: 16px;
@@ -1010,4 +1051,6 @@ code {
   .post-nav { padding: 40px 24px; }
   .project-ref { flex-direction: column; }
   .stack-row { grid-template-columns: 1fr; gap: 4px; }
+  .post-layout { grid-template-columns: 1fr; }
+  .post-sidebar { display: none; }
 }

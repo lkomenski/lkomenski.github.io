@@ -113,3 +113,60 @@ document.querySelectorAll('.copyright-year').forEach(el => {
     });
   });
 })();
+
+// ─── POST TABLE OF CONTENTS ───────────────────────────────────────────────────
+(function initTOC() {
+  const sidebar = document.querySelector('.post-sidebar');
+  if (!sidebar) return;
+
+  const headings = document.querySelectorAll('.post-body-inner h2');
+  if (headings.length < 2) return;
+
+  const NAV_OFFSET = 74;
+
+  headings.forEach((h, i) => {
+    if (!h.id) h.id = 'section-' + (i + 1);
+  });
+
+  const list = document.createElement('ul');
+  list.className = 'post-toc-list';
+
+  headings.forEach(h => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#' + h.id;
+    a.textContent = h.textContent;
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const top = h.getBoundingClientRect().top + window.scrollY - NAV_OFFSET;
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
+    li.appendChild(a);
+    list.appendChild(li);
+  });
+
+  const toc = document.createElement('nav');
+  toc.className = 'post-toc';
+  toc.setAttribute('aria-label', 'Table of contents');
+
+  const label = document.createElement('span');
+  label.className = 'post-toc-label';
+  label.textContent = 'On this page';
+
+  toc.appendChild(label);
+  toc.appendChild(list);
+  sidebar.appendChild(toc);
+
+  const links = list.querySelectorAll('a');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(a => a.classList.remove('toc-active'));
+        const active = list.querySelector(`a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('toc-active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  headings.forEach(h => observer.observe(h));
+})();
