@@ -157,14 +157,15 @@ document.querySelectorAll('.copyright-year').forEach(el => {
   toc.appendChild(list);
   sidebar.appendChild(toc);
 
-  // Reveal sidebar exactly when it becomes sticky (natural position hits the threshold)
-  function checkSidebarReveal() {
-    if (sidebar.getBoundingClientRect().top <= 82) {
+  // Show/hide sidebar based on whether the first heading has scrolled into view
+  function updateSidebarVisibility() {
+    if (headings[0].getBoundingClientRect().top <= 120) {
       sidebar.classList.add('toc-visible');
-      window.removeEventListener('scroll', checkSidebarReveal);
+    } else {
+      sidebar.classList.remove('toc-visible');
     }
   }
-  window.addEventListener('scroll', checkSidebarReveal, { passive: true });
+  window.addEventListener('scroll', updateSidebarVisibility, { passive: true });
 
   const links = list.querySelectorAll('a');
   const observer = new IntersectionObserver(entries => {

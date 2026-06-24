@@ -652,6 +652,7 @@ footer {
   align-self: start;
   opacity: 0;
   transition: opacity 0.4s;
+  padding-top: 20px;
 }
 
 .post-sidebar.toc-visible {
@@ -663,11 +664,17 @@ footer {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--light);
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
   display: block;
 }
 
-.post-toc-list { list-style: none; }
+.post-toc-list {
+  margin-top: 4px;
+}
+
+.post-toc-list { list-style: none; margin-top: 4px; }
 
 .post-toc-list li a {
   font-size: 12px;
