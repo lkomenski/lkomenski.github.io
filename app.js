@@ -157,14 +157,14 @@ document.querySelectorAll('.copyright-year').forEach(el => {
   toc.appendChild(list);
   sidebar.appendChild(toc);
 
-  // Reveal the sidebar once the first heading enters the viewport
-  const revealObserver = new IntersectionObserver(([entry]) => {
-    if (entry.isIntersecting) {
+  // Reveal sidebar exactly when it becomes sticky (natural position hits the threshold)
+  function checkSidebarReveal() {
+    if (sidebar.getBoundingClientRect().top <= 82) {
       sidebar.classList.add('toc-visible');
-      revealObserver.disconnect();
+      window.removeEventListener('scroll', checkSidebarReveal);
     }
-  }, { rootMargin: '0px 0px -30% 0px' });
-  revealObserver.observe(headings[0]);
+  }
+  window.addEventListener('scroll', checkSidebarReveal, { passive: true });
 
   const links = list.querySelectorAll('a');
   const observer = new IntersectionObserver(entries => {
