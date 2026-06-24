@@ -157,6 +157,15 @@ document.querySelectorAll('.copyright-year').forEach(el => {
   toc.appendChild(list);
   sidebar.appendChild(toc);
 
+  // Reveal the sidebar once the first heading enters the viewport
+  const revealObserver = new IntersectionObserver(([entry]) => {
+    if (entry.isIntersecting) {
+      sidebar.classList.add('toc-visible');
+      revealObserver.disconnect();
+    }
+  }, { rootMargin: '0px 0px -30% 0px' });
+  revealObserver.observe(headings[0]);
+
   const links = list.querySelectorAll('a');
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {

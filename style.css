@@ -650,6 +650,12 @@ footer {
   position: sticky;
   top: 80px;
   align-self: start;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.post-sidebar.toc-visible {
+  opacity: 1;
 }
 
 .post-toc-label {
@@ -1054,7 +1060,8 @@ code {
   .post-sidebar { display: none; }
 }
 
-@media (max-width: 960px) {
+@media (min-width: 769px) and (max-width: 960px) {
   .post-layout { grid-template-columns: 1fr; }
   .post-sidebar { display: none; }
 }
+
